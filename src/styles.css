@@ -915,7 +915,8 @@ table.plain th.r {
     display: none;
   }
   .lessons {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem 0.75rem 2rem;
   }
   .skill-row {
     grid-template-columns: 100px 1fr 70px;
@@ -2257,5 +2258,20 @@ table.plain th.r {
   }
   .map-stage {
     aspect-ratio: 1.5 / 1;
+  }
+}
+@media (max-width: 720px) {
+  .war {
+    padding: 0.7rem 0.75rem 1rem;
+  }
+  .war-controls {
+    flex-wrap: wrap;
+  }
+  .basket-table th:nth-child(5),
+  .basket-table td:nth-child(5) {
+    display: none;
+  }
+  .basket-table .acts .btn {
+    min-width: 30px;
   }
 }
