@@ -24,7 +24,7 @@ function rgba(hex: string, a: number) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-export type Overlay = 'sma8' | 'sma25' | 'sma50' | 'bb' | 'volume' | 'macd';
+export type Overlay = 'sma8' | 'sma25' | 'sma50' | 'bb' | 'volume' | 'macd' | 'liquidity';
 type MarkerKind = 'trades' | 'news' | 'swings';
 
 /** Candles with SMAs, Bollinger Bands and volume on top; MACD in a synced pane below. */
@@ -44,6 +44,7 @@ export class ChartView {
   private sigLine: ISeriesApi<'Line'>;
   private markers: Record<MarkerKind, SeriesMarker<Time>[]> = { trades: [], news: [], swings: [] };
   private lines = new Map<string, IPriceLine>();
+  private trendLines: ISeriesApi<'Line'>[] = [];
   private shown: { bar: Bar; p: Point }[] = [];
   labels: string[] = [];
   ticks: string[] = [];
@@ -138,6 +139,7 @@ export class ChartView {
     this.candles.setMarkers([]);
     for (const l of this.lines.values()) this.candles.removePriceLine(l);
     this.lines.clear();
+    this.clearTrendLines();
     this.redraw();
     // Wait for autoSize to measure the container before framing the view.
     const frame = () => this.main.timeScale().setVisibleLogicalRange({ from: Math.max(0, count - 110), to: count + 25 });
@@ -198,6 +200,7 @@ export class ChartView {
       bb: [this.bbU, this.bbM, this.bbL],
       volume: [this.volume],
       macd: [],
+      liquidity: [],
     }[o];
     for (const s of series) s.applyOptions({ visible });
     if (o === 'macd') this.macdEl.hidden = !visible;
@@ -230,6 +233,30 @@ export class ChartView {
     const o = { price, color: opts.color, title: opts.title, lineStyle: opts.style ?? LineStyle.Solid, lineWidth: 1 as const, axisLabelVisible: true };
     if (existing) existing.applyOptions(o);
     else this.lines.set(key, this.candles.createPriceLine(o));
+  }
+
+  /** A straight line between two clicked points (bar index, price). */
+  addTrendLine(a: { i: number; price: number }, b: { i: number; price: number }) {
+    if (a.i === b.i) return;
+    const [p, q] = a.i < b.i ? [a, b] : [b, a];
+    const series = this.main.addLineSeries({
+      color: css('--accent'),
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+      autoscaleInfoProvider: () => null,
+    });
+    series.setData([
+      { time: timeOf(p.i), value: p.price },
+      { time: timeOf(q.i), value: q.price },
+    ]);
+    this.trendLines.push(series);
+  }
+
+  clearTrendLines() {
+    for (const s of this.trendLines) this.main.removeSeries(s);
+    this.trendLines = [];
   }
 
   lineKeys(prefix: string) {

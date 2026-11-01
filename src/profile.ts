@@ -17,19 +17,28 @@ export interface Profile {
   ratings: SkillScores;
   /** Rating of the skill when each lesson was last opened. */
   lessonsSeen: Record<string, number>;
+  /** How often each lesson's objective was attempted and passed in a round. */
+  objectives: Record<string, { attempts: number; passes: number }>;
+  tutorialDone: boolean;
 }
 
 const KEY = 'atlas.profile.v1';
 const empty = (): Profile => ({
   rounds: [],
-  ratings: { trend: null, setup: null, timing: null, risk: null, patience: null },
+  ratings: { trend: null, setup: null, timing: null, risk: null, patience: null, news: null },
   lessonsSeen: {},
+  objectives: {},
+  tutorialDone: false,
 });
 
 export function loadProfile(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...empty(), ...JSON.parse(raw) } : empty();
+    if (!raw) return empty();
+    const saved = JSON.parse(raw);
+    const base = empty();
+    // Older saves predate some skills; fill them in as unrated.
+    return { ...base, ...saved, ratings: { ...base.ratings, ...saved.ratings } };
   } catch {
     return empty();
   }
@@ -43,8 +52,15 @@ export function saveProfile(p: Profile) {
   }
 }
 
-export function resetProfile() {
-  saveProfile(empty());
+export function resetProfile(keepTutorial: boolean) {
+  saveProfile({ ...empty(), tutorialDone: keepTutorial });
+}
+
+export function recordObjective(p: Profile, lessonId: string, passed: boolean) {
+  const o = (p.objectives[lessonId] ??= { attempts: 0, passes: 0 });
+  o.attempts++;
+  if (passed) o.passes++;
+  saveProfile(p);
 }
 
 export function recordRound(p: Profile, r: RoundRecord) {
@@ -96,27 +112,37 @@ export interface Recommendation {
   reason: string;
 }
 
+const passes = (p: Profile, id: string) => p.objectives[id]?.passes ?? 0;
+
 /**
- * Picks the weakest skill and a lesson tier to match. If the player already saw the
- * advanced lesson and hasn't improved since, it drops back to the foundation.
+ * Picks the weakest skill and a lesson tier to match, reacting to progress:
+ * passing a lesson's objective twice moves you up a tier (and past the advanced
+ * one, on to the next weakest skill), while a skill that hasn't improved since
+ * its advanced lesson drops back to the foundation.
  */
 export function recommend(p: Profile): Recommendation | null {
-  const rated = SKILLS.filter((s) => p.ratings[s.id] !== null);
+  const rated = SKILLS.filter((s) => p.ratings[s.id] !== null).sort((a, b) => p.ratings[a.id]! - p.ratings[b.id]!);
   if (!rated.length) return null;
-  const weakest = rated.reduce((a, b) => (p.ratings[b.id]! < p.ratings[a.id]! ? b : a));
-  const rating = p.ratings[weakest.id]!;
-  const find = (tier: Lesson['tier']) => LESSONS.find((l) => l.skill === weakest.id && l.tier === tier)!;
+  const find = (id: SkillId, tier: Lesson['tier']) => LESSONS.find((l) => l.skill === id && l.tier === tier)!;
+  const open = rated.filter((s) => passes(p, find(s.id, 'advanced').id) < 2);
+  const skill = (open.length ? open : rated)[0];
+  const rating = p.ratings[skill.id]!;
+  const found = find(skill.id, 'foundation');
+  const adv = find(skill.id, 'advanced');
   let tier: Lesson['tier'] = rating < 55 ? 'foundation' : 'advanced';
-  let reason = `${weakest.name} is your weakest skill (${rating}).`;
-  const adv = find('advanced');
-  if (tier === 'advanced' && adv.id in p.lessonsSeen && rating <= p.lessonsSeen[adv.id]) {
-    tier = 'foundation';
-    reason += ' It has not improved since your last lesson, so we are going back to the foundation.';
-  } else if (tier === 'foundation' && find('foundation').id in p.lessonsSeen && rating > p.lessonsSeen[find('foundation').id] + 8) {
+  let reason = `${skill.name} is your weakest skill (${rating}).`;
+  if (skill !== rated[0]) reason = `You've mastered ${rated[0].name} lessons, so next up is ${skill.name} (${rating}).`;
+  if (tier === 'foundation' && passes(p, found.id) >= 2) {
+    tier = 'advanced';
+    reason += ' You passed the foundation objective twice, so this one steps it up.';
+  } else if (tier === 'foundation' && found.id in p.lessonsSeen && rating > p.lessonsSeen[found.id] + 8) {
     tier = 'advanced';
     reason += ' You have improved since the foundation lesson, so this one steps it up.';
+  } else if (tier === 'advanced' && adv.id in p.lessonsSeen && rating <= p.lessonsSeen[adv.id] && passes(p, adv.id) === 0) {
+    tier = 'foundation';
+    reason += ' It has not improved since your last lesson, so we are going back to the foundation.';
   }
-  return { lesson: find(tier), reason };
+  return { lesson: tier === 'foundation' ? found : adv, reason };
 }
 
 export function markLessonSeen(p: Profile, lesson: Lesson) {

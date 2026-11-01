@@ -35,6 +35,9 @@ const etClock = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
   hour12: false,
 });
+const etMonthDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+const etMonth = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short' });
+const etWeekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' });
 const etDate = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
   year: 'numeric',
@@ -62,11 +65,21 @@ function align(ref: Raw[], other: Raw[]): number[] {
   return ref.map((r) => (last = map.get(r[0]) ?? last));
 }
 
-export async function buildScenario(mode: Mode): Promise<Scenario> {
+/** A hand-picked stretch (used by the tutorial) instead of a random one. */
+export interface FixedScenario {
+  symbol: string;
+  startTs: number;
+  pre: number;
+  play: number;
+  alias: { name: string; ticker: string };
+  price: number;
+}
+
+export async function buildScenario(mode: Mode, fixed?: FixedScenario): Promise<Scenario> {
   const m = await loadManifest();
-  const sector = pick(Object.keys(m.sectors));
+  const sector = fixed ? Object.keys(m.sectors).find((k) => m.sectors[k].stocks.includes(fixed.symbol))! : pick(Object.keys(m.sectors));
   const { etf, stocks } = m.sectors[sector];
-  const symbol = pick(stocks.filter((s) => m.symbols[s]));
+  const symbol = fixed?.symbol ?? pick(stocks.filter((s) => m.symbols[s]));
   const [raw, mkt, sec] = await Promise.all([
     loadSeries(mode, symbol),
     loadSeries(mode, m.market),
@@ -78,16 +91,26 @@ export async function buildScenario(mode: Mode): Promise<Scenario> {
   const ticks: string[] = [];
 
   if (mode === 'daily') {
-    pre = 120;
-    const play = 252;
-    // Only use stretches where the sector ETF already existed.
-    const first = raw.findIndex((r) => r[0] >= Math.max(mkt[0][0], sec[0][0]));
-    start = first + Math.floor(Math.random() * (raw.length - first - pre - play));
+    pre = fixed?.pre ?? 120;
+    const play = fixed?.play ?? 252;
+    if (fixed) {
+      start = raw.findIndex((r) => r[0] === fixed.startTs);
+      if (start < 0) throw new Error('Tutorial chart is missing from the data. Run "npm run fetch-data".');
+    } else {
+      // Only use stretches where the sector ETF already existed.
+      const first = raw.findIndex((r) => r[0] >= Math.max(mkt[0][0], sec[0][0]));
+      start = first + Math.floor(Math.random() * (raw.length - first - pre - play));
+    }
     end = start + pre + play;
+    // Month and day are shown (seasonality matters); the year stays hidden.
+    let lastMonth = '';
     for (let i = 0; i < pre + play; i++) {
       const k = i - pre;
-      labels.push(k < 0 ? `Warm-up day ${pre + k + 1}` : `Day ${k + 1}`);
-      ticks.push(k < 0 ? `W${pre + k + 1}` : `D${k + 1}`);
+      const date = new Date(raw[start + i][0] * 1000);
+      const month = etMonth.format(date);
+      labels.push(`${k < 0 ? `Warm-up day ${pre + k + 1}` : `Day ${k + 1}`} · ${etMonthDay.format(date)}`);
+      ticks.push(month !== lastMonth ? month : etMonthDay.format(date));
+      lastMonth = month;
     }
   } else {
     const preDays = 2;
@@ -106,17 +129,18 @@ export async function buildScenario(mode: Mode): Promise<Scenario> {
     for (let i = start; i < end; i++) {
       while (d + 1 < dayStarts.length && dayStarts[d + 1] <= i) d++;
       const rel = d - d0 - preDays;
-      const clock = etClock.format(new Date(raw[i][0] * 1000));
-      const dayName = rel < 0 ? `Warm-up ${preDays + rel + 1}` : `Day ${rel + 1}`;
+      const date = new Date(raw[i][0] * 1000);
+      const clock = etClock.format(date);
+      const dayName = `${rel < 0 ? `Warm-up ${preDays + rel + 1}` : `Day ${rel + 1}`} · ${etWeekday.format(date)}`;
       labels.push(`${dayName} · ${clock}`);
       ticks.push(i === dayStarts[d] ? dayName : clock);
     }
   }
 
   const slice = raw.slice(start, end);
-  const target = Math.round(rand(14, 220));
+  const target = fixed?.price ?? Math.round(rand(14, 220));
   const scale = target / slice[pre - 1][4];
-  const volScale = rand(0.4, 2.5);
+  const volScale = fixed ? 1 : rand(0.4, 2.5);
   const r2 = (x: number) => Math.round(x * scale * 100) / 100;
   const bars: Bar[] = slice.map(([, o, h, l, c, v]) => ({
     o: r2(o),
@@ -131,7 +155,7 @@ export async function buildScenario(mode: Mode): Promise<Scenario> {
     symbol,
     sector,
     etf,
-    alias: makeAlias(),
+    alias: fixed?.alias ?? makeAlias(),
     bars,
     pre,
     labels,

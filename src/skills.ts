@@ -1,4 +1,5 @@
 import type { Trade } from './account';
+import type { NewsCall } from './news';
 
 export const SKILLS = [
   { id: 'trend', name: 'Trend Reading', blurb: 'Trading with the prevailing direction' },
@@ -6,6 +7,7 @@ export const SKILLS = [
   { id: 'timing', name: 'Entry Timing', blurb: 'How little heat your entries take' },
   { id: 'risk', name: 'Risk Control', blurb: 'Stops, sizing, and cutting losers' },
   { id: 'patience', name: 'Patience', blurb: 'Selectivity, and letting winners outlast losers' },
+  { id: 'news', name: 'News Judgment', blurb: 'Reacting to headlines and scheduled events with sense' },
 ] as const;
 
 export type SkillId = (typeof SKILLS)[number]['id'];
@@ -15,8 +17,10 @@ const clamp = (x: number) => Math.max(0, Math.min(100, Math.round(x)));
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 /** Grades the process behind the trades, not the P&L. */
-export function scoreRound(trades: Trade[], playBars: number, startEquity: number): SkillScores {
-  if (!trades.length) return { trend: null, setup: null, timing: null, risk: null, patience: null };
+export function scoreRound(trades: Trade[], calls: NewsCall[], playBars: number, startEquity: number): SkillScores {
+  const graded = calls.filter((c) => c.grade);
+  const news = graded.length ? clamp(mean(graded.map((c) => ({ good: 1, ok: 0.5, bad: 0 })[c.grade!])) * 100) : null;
+  if (!trades.length) return { trend: null, setup: null, timing: null, risk: null, patience: null, news };
 
   const trend = mean(
     trades.map((t) => {
@@ -53,5 +57,6 @@ export function scoreRound(trades: Trade[], playBars: number, startEquity: numbe
     timing: clamp(timing),
     risk: clamp(risk),
     patience: clamp(patience),
+    news,
   };
 }

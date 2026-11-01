@@ -11,7 +11,10 @@ export interface Trade {
   entryPrice: number;
   stop?: number;
   target?: number;
+  initialStop?: number;
+  initialTarget?: number;
   stopAtEntry: boolean;
+  trailed: boolean;
   tags: string[];
   verified: Record<string, boolean>;
   ctx: Context;
@@ -48,10 +51,10 @@ export class Account {
     return t ? t.dir * t.qty * (price - t.entryPrice) : 0;
   }
 
-  enter(t: Omit<Trade, 'id' | 'entryPrice' | 'mae' | 'mfe'>, price: number) {
+  enter(t: Omit<Trade, 'id' | 'entryPrice' | 'mae' | 'mfe' | 'initialStop' | 'initialTarget' | 'trailed'>, price: number) {
     const fill = price * (1 + t.dir * SLIPPAGE);
     this.cash -= t.dir * t.qty * fill + FEE;
-    this.open = { ...t, id: this.nextId++, entryPrice: fill, mae: 0, mfe: 0 };
+    this.open = { ...t, id: this.nextId++, entryPrice: fill, mae: 0, mfe: 0, initialStop: t.stop, initialTarget: t.target, trailed: false };
     return this.open;
   }
 

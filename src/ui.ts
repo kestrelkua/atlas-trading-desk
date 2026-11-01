@@ -1,8 +1,9 @@
 import type { Account, Trade } from './account';
 import { tagById, TAGS } from './context';
 import { MODES } from './data';
-import type { Briefing, NewsItem } from './events';
-import { LESSONS, type Lesson } from './lessons';
+import type { Briefing, CalendarEvent, NewsItem } from './events';
+import { LESSONS, type Lesson, type ObjectiveStatus } from './lessons';
+import { REACTION_BARS, explainGrade, type NewsCall } from './news';
 import { LEVELS, level, skillTrend, type Profile, type Recommendation } from './profile';
 import { SKILLS, type SkillScores } from './skills';
 import type { Scenario } from './types';
@@ -46,6 +47,7 @@ export function briefing(s: Scenario, b: Briefing, opts: { phase: string; bias: 
       <dt>Average range (ATR)</dt><dd>${b.atrPct.toFixed(1)}% per bar</dd>
       <dt>From warm-up high</dt><dd class="${tone(b.fromHigh)}">${pct(b.fromHigh)}</dd>
     </dl>
+    <p class="hint">Earnings dates and economic releases appear on the calendar once they're announced, usually a few weeks ahead.</p>
     ${b.bigMoveExpected ? '<div class="flag">Options desk: the market is pricing an <b>outsized move</b> in this period.</div>' : ''}
     ${
       warm
@@ -85,8 +87,74 @@ export function context(s: Scenario, cur: number) {
       <b class="num ${tone(rel)}">${pct(rel)}</b></p>`;
 }
 
+const KIND_LABEL: Record<NewsItem['kind'], string> = {
+  move: 'Headline',
+  noise: 'Headline',
+  wild: 'Wild headline',
+  earnings: 'Earnings',
+  macro: 'Economic release',
+};
+
 export function wireItem(n: NewsItem, label: string) {
-  return `<li class="${n.kind === 'wild' ? 'wild' : n.tone}"><span class="when">${esc(label)}</span>${esc(n.headline)}</li>`;
+  return `<li data-idx="${n.idx}" class="${n.kind === 'wild' ? 'wild' : n.tone}"><span class="when">${KIND_LABEL[n.kind]} · ${esc(label)}</span>${esc(n.headline)}</li>`;
+}
+
+export function decision(n: NewsItem, open: Trade | null, timed: boolean) {
+  const btn = (v: string, label: string, cls = '') => `<button class="btn ${cls}" data-act="decide" data-v="${v}">${label}</button>`;
+  const choices = open
+    ? btn('hold', 'Hold') + btn('close', 'Close position', open.dir === 1 ? 'sell' : 'buy')
+    : btn('long', 'Go long', 'buy') + btn('short', 'Go short', 'sell') + btn('out', 'Stay out');
+  return `
+    <p class="kicker">Breaking · ${KIND_LABEL[n.kind]}</p>
+    <p class="headline">${esc(n.headline)}</p>
+    ${timed ? '<div class="timer"><span></span></div>' : ''}
+    <div class="choices">${choices}</div>
+    <p class="hint">${open ? 'You have an open position.' : 'New trades use your ticket settings for size, stop and target.'} Graded on what price does next.</p>`;
+}
+
+const known = (events: CalendarEvent[], cur: number) => events.filter((e) => e.announceIdx <= cur);
+
+export function pins(events: CalendarEvent[], s: Scenario, cur: number) {
+  const total = s.bars.length - s.pre;
+  return known(events, cur)
+    .map((e) => {
+      const left = ((e.idx - s.pre + 0.5) / total) * 100;
+      return `<span class="${e.kind} ${e.idx <= cur ? 'past' : ''}" style="left:${left}%" title="${esc(e.title)} · ${esc(s.labels[e.idx])}">${e.code}</span>`;
+    })
+    .join('');
+}
+
+export function calendar(events: CalendarEvent[], s: Scenario, cur: number) {
+  const list = known(events, cur);
+  const body = list.length
+    ? list
+        .map((e) => {
+          const past = e.idx <= cur;
+          let status: string;
+          if (past) {
+            const move = (s.bars[e.idx].c / s.bars[e.idx - 1].c - 1) * 100;
+            status = `<span class="num ${tone(move)}">${pct(move)}</span>`;
+          } else status = `<span class="muted">${e.idx - cur === 1 ? 'next bar' : `in ${e.idx - cur} bars`}</span>`;
+          return `<div class="cal-item ${past ? 'past' : ''}">
+        <span class="pin-icon ${e.kind}">${e.code}</span>
+        <span>${esc(e.title)}<span class="when">${esc(s.labels[e.idx])} · ${esc(e.detail)}</span></span>
+        ${status}</div>`;
+        })
+        .join('')
+    : '<p class="muted">Nothing announced yet. Dates appear here a few weeks ahead.</p>';
+  return `<h3>Event calendar</h3>${body}
+    <p class="hint"><b>EARN</b> = this company's earnings report. <b>CPI, FED, JOBS, SALES, GDP</b> = economic releases that move the whole market. Big events can gap straight past a stop.</p>`;
+}
+
+export const announcedAhead = (events: CalendarEvent[], cur: number) => known(events, cur).filter((e) => e.idx > cur).length;
+
+export function objective(l: Lesson, st: ObjectiveStatus, ended: boolean) {
+  const mark = st.done ? '<span class="up">✓ Complete</span>' : st.failed ? '<span class="down">✗ Missed</span>' : ended ? '<span class="down">✗ Not met</span>' : '<span class="muted">In progress</span>';
+  return `
+    <h3>Lesson objective</h3>
+    <div class="obj-title">${esc(l.challenge)}</div>
+    <div class="obj-status num">${mark} · ${esc(st.progress)}</div>
+    <p class="hint">From "${esc(l.title)}". Pass it twice to level up this lesson.</p>`;
 }
 
 export function account(a: Account, price: number, s: Scenario | null) {
@@ -220,6 +288,9 @@ export function debrief(d: {
   profile: Profile;
   rec: Recommendation | null;
   levelBefore: string;
+  calls: NewsCall[];
+  objective: { lesson: Lesson; status: ObjectiveStatus } | null;
+  placement: boolean;
 }) {
   const { s, acct } = d;
   const trades = acct.closed;
@@ -241,7 +312,8 @@ export function debrief(d: {
     }
 
   return `
-    <h2 id="debrief-title" style="margin:0">Round complete</h2>
+    <h2 id="debrief-title" style="margin:0">${d.placement ? 'Placement round complete' : 'Round complete'}</h2>
+    ${d.placement ? '<p class="muted" style="margin:0.2rem 0 0">This round set your starting ratings. From here on, lessons and objectives adapt to how you trade.</p>' : ''}
     <div class="reveal">
       <div class="muted">${esc(s.alias.name)} (${esc(s.alias.ticker)}) was</div>
       <div class="was">${esc(s.symbol)}</div>
@@ -267,6 +339,18 @@ export function debrief(d: {
         .join('')}
       </tbody></table>`
         : '<p class="muted">No trades this round, so your skills were not assessed. Sitting out is a valid choice, but you only learn from reps.</p>'
+    }
+    ${
+      d.objective
+        ? `<h3>Lesson objective</h3><p>${d.objective.status.done ? '<span class="up">✓ Passed</span>' : '<span class="down">✗ Not passed</span>'}: ${esc(d.objective.lesson.challenge)} <span class="muted">(${esc(d.objective.status.progress)})</span></p>`
+        : ''
+    }
+    ${
+      d.calls.length
+        ? `<h3>News calls</h3><table class="plain"><tbody>${d.calls
+            .map((c) => `<tr><td>${esc(c.headline)}</td><td class="r">${c.grade ? explainGrade(c, REACTION_BARS[s.mode]) : ''}</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
     }
     <h3>Skills <span class="muted" style="font-weight:400;letter-spacing:0">(bar = rating, gold tick = this round)</span></h3>
     ${skillRows(d.scores, d.profile.ratings, d.before)}

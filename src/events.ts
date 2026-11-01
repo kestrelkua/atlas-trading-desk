@@ -6,7 +6,19 @@ export interface NewsItem {
   idx: number;
   headline: string;
   tone: 'bull' | 'bear' | 'neutral';
-  kind: 'move' | 'noise' | 'wild';
+  kind: 'move' | 'noise' | 'wild' | 'earnings' | 'macro';
+}
+
+/** A scheduled event the player can see coming on the calendar. */
+export interface CalendarEvent {
+  idx: number;
+  kind: 'earnings' | 'macro';
+  title: string;
+  /** Short label for the progress-strip pin, e.g. EARN or CPI. */
+  code: string;
+  detail: string;
+  /** Bar at which the date becomes public and shows up on the calendar. */
+  announceIdx: number;
 }
 
 const THINGS: Record<string, string[]> = {
@@ -72,19 +84,103 @@ export function shockScores(s: Scenario, ind: Indicators): { idx: number; score:
   return out;
 }
 
+const MACRO: [string, string][] = [
+  ['CPI inflation report', 'CPI'],
+  ['Fed rate decision', 'FED'],
+  ['Jobs report', 'JOBS'],
+  ['Retail sales data', 'SALES'],
+  ['GDP estimate', 'GDP'],
+];
+const randInt = (a: number, b: number) => a + Math.floor(Math.random() * (b - a + 1));
+
 /**
- * Headlines pinned to the bars where the real data made an outsized move, plus a
- * couple of noise items that don't matter. Wild variants keep it fun; the price
- * action underneath is always real.
+ * Scheduled events, placed where the real data says they belong: earnings land on
+ * the biggest overnight gap of each quarter, macro releases on the broad market's
+ * biggest moves. One extra macro release lands on a quiet bar, because plenty of
+ * scheduled events turn out to be non-events.
  */
-export function generateNews(s: Scenario, ind: Indicators): NewsItem[] {
+export function buildCalendar(s: Scenario, ind: Indicators): CalendarEvent[] {
+  type Draft = Omit<CalendarEvent, 'announceIdx'>;
+  const events: Draft[] = [];
+  const play = s.bars.length - s.pre;
+  const gap = (i: number) => Math.abs(s.bars[i].o - s.bars[i - 1].c) / (ind.atr[i - 1] || 1);
+  const taken = (i: number, d: number) => events.some((e) => Math.abs(e.idx - i) < d);
+
+  if (s.mode === 'daily') {
+    const quarters = Math.max(1, Math.round(play / 63));
+    const len = Math.floor(play / quarters);
+    for (let q = 0; q < quarters; q++) {
+      const from = s.pre + q * len + 8;
+      const to = Math.min(s.bars.length, s.pre + (q + 1) * len - 4);
+      let best = from;
+      for (let i = from; i < to; i++) if (gap(i) > gap(best)) best = i;
+      events.push({ idx: best, kind: 'earnings', title: 'Earnings report', code: 'EARN', detail: 'before the open' });
+    }
+  } else {
+    const opens = [];
+    for (let i = s.pre + 1; i < s.bars.length; i++) if (s.ticks[i].startsWith('Day')) opens.push(i);
+    const best = opens.sort((a, b) => gap(b) - gap(a))[0];
+    if (best && gap(best) > 1.5) events.push({ idx: best, kind: 'earnings', title: 'Earnings report', code: 'EARN', detail: 'after the prior close' });
+  }
+
+  const m = s.market;
+  const r = (i: number) => Math.abs(Math.log(m[i] / m[i - 1]));
+  const idxs = Array.from({ length: play }, (_, k) => s.pre + k);
+  const avg = idxs.reduce((a, i) => a + r(i), 0) / play || 1;
+  const spacing = s.mode === 'daily' ? 15 : 40;
+  const pool = [...MACRO].sort(() => Math.random() - 0.5);
+  const macro = (idx: number): Draft => {
+    const [title, code] = pool.pop() ?? ['Economic data', 'ECON'];
+    return { idx, kind: 'macro', title, code, detail: 'economic release, moves the whole market' };
+  };
+  for (const i of [...idxs].sort((a, b) => r(b) - r(a))) {
+    if (events.filter((e) => e.kind === 'macro').length >= (s.mode === 'daily' ? 3 : 2) || r(i) < avg * 2.8) break;
+    if (taken(i, spacing)) continue;
+    events.push(macro(i));
+  }
+  const quiet = idxs.filter((i) => r(i) < avg * 0.6 && !taken(i, spacing));
+  if (quiet.length) events.push(macro(pick(quiet)));
+
+  // Dates go public ahead of time, like the real world: companies confirm earnings
+  // dates a few weeks out, and economic releases sit on the calendar a couple of weeks
+  // ahead. Intraday rounds only span a week, so events appear a day or two early.
+  const daily = s.mode === 'daily';
+  return events
+    .map((e) => {
+      const lead = daily ? (e.kind === 'earnings' ? randInt(15, 25) : randInt(8, 12)) : e.kind === 'earnings' ? 156 : 78;
+      return { ...e, announceIdx: Math.max(s.pre, e.idx - lead) };
+    })
+    .sort((a, b) => a.idx - b.idx);
+}
+
+const EARN_BULL = ['{co} beats on earnings and raises its outlook', '{co} tops estimates as {thing} surprises to the upside'];
+const EARN_BEAR = ['{co} misses estimates; guidance disappoints', '{co} earnings fall short as {thing} weakens'];
+const EARN_FLAT = ['{co} earnings come in line; no surprises', '{co} reports a mixed quarter'];
+const MACRO_BULL = ['{title}: softer than expected, stocks rally', '{title} calms nerves; buyers step in'];
+const MACRO_BEAR = ['{title}: hotter than expected, stocks slide', '{title} rattles markets; sellers take control'];
+const MACRO_FLAT = ['{title} lands right on expectations', '{title} passes quietly'];
+
+/**
+ * Headlines for the calendar events, then for other bars where the real data made
+ * an outsized move, plus a couple of noise items that don't matter. Wild variants
+ * keep it fun; the price action underneath is always real.
+ */
+export function generateNews(s: Scenario, ind: Indicators, calendar: CalendarEvent[]): NewsItem[] {
   const co = s.alias.name;
+  const items: NewsItem[] = [];
+  for (const e of calendar) {
+    const move = (s.bars[e.idx].c - s.bars[e.idx - 1].c) / (ind.atr[e.idx - 1] || 1);
+    const mkt = s.market[e.idx] / s.market[e.idx - 1] - 1;
+    const tone = e.kind === 'earnings' ? (move > 1 ? 'bull' : move < -1 ? 'bear' : 'neutral') : mkt > 0.004 ? 'bull' : mkt < -0.004 ? 'bear' : 'neutral';
+    const pools = e.kind === 'earnings' ? { bull: EARN_BULL, bear: EARN_BEAR, neutral: EARN_FLAT } : { bull: MACRO_BULL, bear: MACRO_BEAR, neutral: MACRO_FLAT };
+    const headline = fill(pick(pools[tone]), co, s.sector).replace('{title}', e.title);
+    items.push({ idx: e.idx, headline, tone, kind: e.kind });
+  }
   const shocks = shockScores(s, ind)
     .filter((x) => x.score > 1.8)
     .sort((a, b) => b.score - a.score);
-  const items: NewsItem[] = [];
   for (const x of shocks) {
-    if (items.length >= 5) break;
+    if (items.length >= calendar.length + 3) break;
     if (items.some((n) => Math.abs(n.idx - x.idx) < 8)) continue;
     const wild = Math.random() < 0.3;
     const bull = x.dir > 0;
@@ -92,7 +188,7 @@ export function generateNews(s: Scenario, ind: Indicators): NewsItem[] {
     items.push({ idx: x.idx, headline: fill(pick(pool), co, s.sector), tone: bull ? 'bull' : 'bear', kind: wild ? 'wild' : 'move' });
   }
   const calm = shockScores(s, ind).filter((x) => x.score < 0.8 && !items.some((n) => Math.abs(n.idx - x.idx) < 5));
-  for (let k = 0; k < 2 && calm.length; k++) {
+  for (let k = 0; k < 1 && calm.length; k++) {
     const x = calm.splice(Math.floor(Math.random() * calm.length), 1)[0];
     items.push({ idx: x.idx, headline: fill(pick(NOISE), co, s.sector), tone: 'neutral', kind: 'noise' });
   }

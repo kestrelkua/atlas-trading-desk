@@ -12,6 +12,8 @@ const SECTORS = {
   Industrials: { etf: 'XLI', stocks: ['BA', 'CAT', 'GE'] },
 };
 const MARKET = 'SPY';
+// Extra instruments for the War Economy basket: defense, gold, airlines.
+const WAR = ['ITA', 'GLD', 'JETS'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,8 +33,8 @@ async function fetchBars(symbol, range, interval) {
   return bars;
 }
 
-const manifest = { market: MARKET, sectors: SECTORS, fetchedAt: new Date().toISOString(), symbols: {} };
-const all = [MARKET, ...Object.values(SECTORS).flatMap((s) => [s.etf, ...s.stocks])];
+const manifest = { market: MARKET, sectors: SECTORS, war: WAR, fetchedAt: new Date().toISOString(), symbols: {} };
+const all = [MARKET, ...WAR, ...Object.values(SECTORS).flatMap((s) => [s.etf, ...s.stocks])];
 
 for (const dir of ['daily', 'intraday']) await mkdir(`public/data/${dir}`, { recursive: true });
 

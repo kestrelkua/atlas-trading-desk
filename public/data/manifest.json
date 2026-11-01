@@ -61,9 +61,26 @@
       ]
     }
   },
-  "fetchedAt": "2026-10-31T17:17:33.011Z",
+  "war": [
+    "ITA",
+    "GLD",
+    "JETS"
+  ],
+  "fetchedAt": "2026-11-01T18:39:06.105Z",
   "symbols": {
     "SPY": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "ITA": {
+      "daily": 2514,
+      "intraday": 4680
+    },
+    "GLD": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "JETS": {
       "daily": 2514,
       "intraday": 4681
     },

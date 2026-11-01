@@ -14,7 +14,7 @@ export const TICKS_PER_BAR = 10;
  * Up bars usually visit the low first, down bars the high. The extremes land on
  * exact ticks so stops placed inside the bar's range are always tested.
  */
-function buildPath(b: Bar): number[] {
+export function buildPath(b: Bar): number[] {
   const T = TICKS_PER_BAR;
   const lowFirst = b.c >= b.o ? Math.random() < 0.7 : Math.random() < 0.3;
   const ka = 1 + Math.floor(Math.random() * 4);
@@ -37,6 +37,13 @@ function buildPath(b: Bar): number[] {
     path.push(Math.min(b.h, Math.max(b.l, p + jitter)));
   }
   return path;
+}
+
+/** The bar as it looks after tick `k` of its path (the last tick is the finished bar). */
+export function partialAt(b: Bar, path: number[], k: number): Bar {
+  if (k >= TICKS_PER_BAR - 1) return b;
+  const seg = path.slice(0, k + 1);
+  return { o: b.o, h: Math.max(...seg), l: Math.min(...seg), c: seg[seg.length - 1], v: Math.round((b.v * (k + 1)) / TICKS_PER_BAR) };
 }
 
 export class Replay {
@@ -91,19 +98,8 @@ export class Replay {
       this.path = buildPath(this.bars[this.i]);
       this.h.onBarOpen(this.i);
     }
-    const b = this.bars[this.i];
     const last = this.k === TICKS_PER_BAR - 1;
-    const seg = this.path.slice(0, this.k + 1);
-    const partial: Bar = last
-      ? b
-      : {
-          o: b.o,
-          h: Math.max(...seg),
-          l: Math.min(...seg),
-          c: seg[seg.length - 1],
-          v: Math.round((b.v * (this.k + 1)) / TICKS_PER_BAR),
-        };
-    this.h.onTick(this.i, partial);
+    this.h.onTick(this.i, partialAt(this.bars[this.i], this.path, this.k));
     this.k++;
     if (last) {
       this.h.onBarClose(this.i);

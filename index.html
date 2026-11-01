@@ -25,10 +25,12 @@
       </div>
       <nav class="tabs" role="tablist">
         <button data-view="sim" class="active" role="tab">Simulator</button>
+        <button data-view="war" role="tab">War Room <span class="fun-badge">fun mode</span></button>
         <button data-view="lessons" role="tab">Lessons &amp; Progress</button>
       </nav>
       <div class="top-right">
         <span id="level-badge" class="level-badge"></span>
+        <button id="help-btn" class="icon-btn" title="Replay the tutorial" aria-label="Replay the tutorial">?</button>
         <button id="theme-toggle" class="icon-btn" title="Toggle night chart" aria-label="Toggle theme">◐</button>
       </div>
     </header>
@@ -80,13 +82,19 @@
           <span class="divider"></span>
           <div class="seg" id="tool-seg" title="Drawing tools">
             <button data-tool="level" title="Click the chart to draw a horizontal level (L)">― Level</button>
+            <button data-tool="trend" title="Click two points to draw a trend line (T)">╱ Trend</button>
             <button data-tool="swing" title="Click a candle to mark a swing high or low (H)">⌃ Swing</button>
           </div>
           <button id="clear-marks" class="btn ghost small">Clear marks</button>
+          <div class="cal-wrap">
+            <button id="cal-btn" class="btn ghost small" aria-expanded="false">Calendar</button>
+            <div id="cal-panel" class="cal-panel" hidden></div>
+          </div>
         </div>
-        <div class="progress"><div id="progress-bar"></div><span id="clock" class="clock"></span></div>
+        <div class="progress"><div id="progress-bar"></div><div id="pins" class="pins"></div><span id="clock" class="clock"></span></div>
         <div class="chart-wrap">
           <div id="phase-banner" class="phase-banner"></div>
+          <div id="decision" class="decision" hidden></div>
           <div id="chart-main" class="chart-main"></div>
           <div id="chart-macd" class="chart-macd"></div>
         </div>
@@ -97,11 +105,13 @@
           <label><input type="checkbox" data-overlay="bb" checked /><i class="sw band dashed"></i>Bollinger 20, 2</label>
           <label><input type="checkbox" data-overlay="volume" checked /><i class="sw vol"></i>Volume</label>
           <label><input type="checkbox" data-overlay="macd" checked /><i class="sw accent"></i>MACD 12, 26, 9</label>
-          <span class="keys">Space play · → step · B buy · S short · X close · L level · H swing</span>
+          <label title="High-volume areas and stop clusters"><input type="checkbox" data-overlay="liquidity" /><i class="sw liq"></i>Liquidity zones</label>
+          <span class="keys">Space play · → step · B buy · S short · X close · L level · T trend · H swing</span>
         </div>
       </section>
 
       <aside class="ticket">
+        <div id="objective" class="card objective" hidden></div>
         <div id="account" class="card"></div>
         <div id="order" class="card"></div>
         <div class="card">
@@ -111,11 +121,72 @@
       </aside>
     </main>
 
+    <main id="view-war" class="war" hidden>
+      <div class="war-head">
+        <div class="war-names">
+          <div class="war-title" id="war-title">War Economy</div>
+          <div class="war-sub" id="war-sub"></div>
+        </div>
+        <div class="tension" title="How tense the world is: market volatility plus the news">
+          <span class="lbl">Tension</span>
+          <div class="gauge"><span id="tension-bar"></span></div>
+          <span id="tension-label" class="num"></span>
+        </div>
+        <div class="war-controls">
+          <button class="btn primary" id="war-play" data-war="play">Start</button>
+          <div class="seg">
+            <button data-war="speed" data-v="1">1×</button>
+            <button data-war="speed" data-v="2" class="active">2×</button>
+            <button data-war="speed" data-v="4">4×</button>
+            <button data-war="speed" data-v="8">8×</button>
+          </div>
+          <button class="btn ghost" data-war="new">New crisis</button>
+        </div>
+      </div>
+      <div class="war-clock-row"><span id="war-clock" class="clock-text"></span><span id="war-flash" class="war-flash" hidden></span></div>
+      <div class="war-grid">
+        <section class="map-card">
+          <div id="war-map"></div>
+          <div id="war-pop" class="war-pop" hidden></div>
+          <div id="sitrep" class="sitrep" hidden></div>
+        </section>
+        <aside class="card basket">
+          <h3>Your basket</h3>
+          <div id="war-acct" class="acct-grid num"></div>
+          <div class="field">
+            <div class="row"><span>Each click trades</span></div>
+            <div class="seg" style="display:flex">
+              <button data-war="size" data-v="5000" style="flex:1">$5k</button>
+              <button data-war="size" data-v="10000" class="active" style="flex:1">$10k</button>
+              <button data-war="size" data-v="25000" style="flex:1">$25k</button>
+            </div>
+          </div>
+          <table class="plain basket-table">
+            <thead><tr><th>Market</th><th class="r">Price</th><th class="r">Move</th><th class="r">Position</th><th class="r">P&amp;L</th><th></th></tr></thead>
+            <tbody id="basket-rows"></tbody>
+          </table>
+          <p class="hint">Click a market's name to chart it. + buys, − sells (or shorts), × closes.</p>
+        </aside>
+        <section class="card war-chart">
+          <div class="wc-head" id="wc-head"></div>
+          <div id="war-chart-main" class="wc-main"></div>
+          <div id="war-chart-macd" class="wc-macd"></div>
+        </section>
+        <aside class="card war-log-card">
+          <h3>Dispatches</h3>
+          <ol id="war-log" class="war-log"></ol>
+        </aside>
+      </div>
+    </main>
+
     <main id="view-lessons" class="lessons" hidden></main>
 
     <div id="debrief" class="modal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="debrief-title"></div>
     </div>
+
+    <div id="spot" class="spot" hidden></div>
+    <div id="coach" class="coach" role="dialog" aria-live="polite" hidden></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
