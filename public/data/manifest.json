@@ -1,0 +1,195 @@
+{
+  "market": "SPY",
+  "sectors": {
+    "Technology": {
+      "etf": "XLK",
+      "stocks": [
+        "AAPL",
+        "NVDA",
+        "MSFT",
+        "AMD",
+        "INTC"
+      ]
+    },
+    "Financials": {
+      "etf": "XLF",
+      "stocks": [
+        "JPM",
+        "BAC",
+        "GS",
+        "SCHW"
+      ]
+    },
+    "Energy": {
+      "etf": "XLE",
+      "stocks": [
+        "XOM",
+        "CVX",
+        "OXY"
+      ]
+    },
+    "Health Care": {
+      "etf": "XLV",
+      "stocks": [
+        "PFE",
+        "UNH",
+        "MRNA"
+      ]
+    },
+    "Consumer Discretionary": {
+      "etf": "XLY",
+      "stocks": [
+        "TSLA",
+        "AMZN",
+        "NKE"
+      ]
+    },
+    "Communication": {
+      "etf": "XLC",
+      "stocks": [
+        "META",
+        "NFLX",
+        "DIS"
+      ]
+    },
+    "Industrials": {
+      "etf": "XLI",
+      "stocks": [
+        "BA",
+        "CAT",
+        "GE"
+      ]
+    }
+  },
+  "fetchedAt": "2026-10-31T17:17:33.011Z",
+  "symbols": {
+    "SPY": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLK": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "AAPL": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "NVDA": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "MSFT": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "AMD": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "INTC": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLF": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "JPM": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "BAC": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "GS": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "SCHW": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLE": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XOM": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "CVX": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "OXY": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLV": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "PFE": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "UNH": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "MRNA": {
+      "daily": 1985,
+      "intraday": 4681
+    },
+    "XLY": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "TSLA": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "AMZN": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "NKE": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLC": {
+      "daily": 2104,
+      "intraday": 4681
+    },
+    "META": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "NFLX": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "DIS": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "XLI": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "BA": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "CAT": {
+      "daily": 2514,
+      "intraday": 4681
+    },
+    "GE": {
+      "daily": 2514,
+      "intraday": 4681
+    }
+  }
+}
