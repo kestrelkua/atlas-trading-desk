@@ -26,18 +26,34 @@ Nothing here is locked in. Ideas move to "Built" once they ship.
 - Lesson objectives run live in the simulator; passing one twice levels up the lesson, and mastered skills hand off to the next weakest
 - Trend line drawing tool; months and days on the daily axis (year still hidden), weekdays on intraday
 
-## Built in v0.3 · War Room (fun mode)
-- Fictional world map with silly countries ('Murica, Canadia, Bearlandia, Dragonia, Tealand, Bonjouria, Autobahnia, Petrolia, Cricketania, Sunrisia, Down Undria, Futbolia, Savannia) and places (Strait of Hmm-uz)
-- Four crises played over real prices of real episodes (2018 trade war, 2022 invasion of Ukraine, Oct 2023 Middle East, 2025 tariff shock), revealed at the end
-- A six-market basket (World Index, Defense, Energy, Gold, Airlines, Tech) with long/short positions up to 2× equity
-- Dispatches written from the real moves, shown as map dots and in a log; click to read (pauses), big ones auto-pause; borders light up red/amber/green; a tension meter
-- Unlocked from the start for testing
+## Built in v0.3 · War Room
+- First version: fictional world, four crises over real prices of real episodes (2018 trade war, 2022 invasion of Ukraine, Oct 2023 Middle East, 2025 tariff shock), a six-market long/short basket, dispatches written from the real moves
+
+## Built in v0.4–v0.6 · War Room
+- Real Natural Earth coastlines merged into wry fictional nations (The United Debts, Supplychina, The Bleak Federation…), border states, front lines, shipping lanes that get cut, resource icons, hover lines
+- Zoom and pan, the camera flies to big news, read dots fade out
+- Race line vs the World Index, rotation heatmap, playbooks, first-visit briefing
+- Thesis tags checked against the data, timed desk calls, five War Room skills with lessons and objectives
+- After-action review: you vs holding vs a panic seller, guided summary, real timeline, reflection note
+- Ops console: news wire, escalation ladder, clickable timeline; sober case-file crisis names
+
+## War Room: endless crises (the long-term goal)
+Every War Room game should feel new while teaching the same core ideas. Two routes, not exclusive:
+- **Many hand-built crises**: add more real episodes (needs longer history for some: 2003 Iraq, 2014 Crimea, 2020 oil price war, 2020 COVID crash). Name them plainly, like a desk would: "The Northern Energy Crisis", "The Strait Closure", "The Chip Export Standoff"
+- **Truly random crises**: scan the 10-year data for real stress windows (drawdowns, volatility spikes, energy or gold surges), start at a random point, randomly cast which nations play which roles, and generate the title and story from templates (region + type)
+- Either way the skills, theses, desk calls and lessons stay the same, so the lessons repeat while the story changes
 
 ## War Room ideas
 - Rank lock (e.g. Navigator) once testing is done
-- Chokepoint closures, circuit-breaker halts, sanctions that freeze a position
-- War Room skills and lessons (rotation, safe havens, "buy the invasion")
-- More crises and more instruments (bonds, shipping)
+- Circuit-breaker halts, sanctions that freeze a position, a flashpoint calendar, optional sound
+- Front-line camera (frame both nations when a conflict starts), minimap when zoomed, labels by zoom level
+- More instruments (bonds: teaches that safe havens can fail; shipping)
+
+## Game of the Day (next phase)
+- One real stock a day, same for everyone (Wordle-style), picked from the day's biggest movers in a ~100-company universe
+- Play a disguised slice of its history first, then guess which of 4 same-sector companies it was, then the reveal plus a "Today" card (price, day change, 52-week range, sector move, what the company does)
+- Streaks and a shareable result line; under 5 minutes
+- Data: a daily after-the-close job writes one small file the app loads (a few hundred KB per day). For first testing, run it once by hand; then schedule it (in the cloud if the app is online)
 
 ## Next up
 - **Prediction drills**: freeze the chart and ask "up, down or sideways over the next 10 bars?" 5-second reps, spaced repetition on the patterns you miss

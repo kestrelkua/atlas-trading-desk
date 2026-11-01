@@ -2022,3 +2022,240 @@ table.plain th.r {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* ---------- War Room ops console ---------- */
+.map-card {
+  justify-content: flex-start;
+  min-height: 0;
+}
+.war-title .case {
+  display: block;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+.console-top {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #1d3a50;
+  color: #cfe3e8;
+  font-size: 0.86rem;
+}
+.newswire {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.newswire-lbl {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--wr-amber);
+  font-size: 0.78rem;
+}
+.newswire-track {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+}
+.newswire-items {
+  display: inline-block;
+  animation: wire 40s linear infinite;
+}
+.newswire-items.idle {
+  animation: none;
+  color: #7f97a6;
+  font-style: italic;
+}
+.newswire-item {
+  margin-right: 2.2rem;
+}
+.newswire-item b {
+  color: #8fb9c0;
+  font-weight: 500;
+  margin-right: 0.3rem;
+}
+.newswire-item.conflict b {
+  color: var(--wr-red);
+}
+.newswire-item.calm b {
+  color: var(--wr-green);
+}
+@keyframes wire {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ladder {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.rung {
+  padding: 0.12rem 0.4rem;
+  font-size: 0.72rem;
+  border-radius: 3px;
+  background: #142838;
+  color: #5d7787;
+  white-space: nowrap;
+}
+.rung.lit.r0 {
+  background: rgba(63, 182, 201, 0.25);
+  color: #bfe6ec;
+}
+.rung.lit.r1 {
+  background: rgba(61, 220, 151, 0.22);
+  color: #c6f2de;
+}
+.rung.lit.r2 {
+  background: rgba(242, 179, 61, 0.28);
+  color: #f7dfae;
+}
+.rung.lit.r3 {
+  background: rgba(255, 90, 69, 0.32);
+  color: #ffd2cb;
+}
+.rung.lit.r4 {
+  background: rgba(255, 90, 69, 0.55);
+  color: #fff;
+}
+.rung.now {
+  outline: 1px solid currentColor;
+  font-weight: 700;
+}
+.map-stage {
+  position: relative;
+  flex: 1 0 auto;
+  aspect-ratio: 1.9 / 1;
+  overflow: hidden;
+}
+.map-stage #war-map {
+  position: absolute;
+  inset: 0;
+}
+.map-stage .world {
+  width: 100%;
+  height: 100%;
+}
+.console-bottom {
+  border-top: 1px solid #1d3a50;
+  padding: 0.5rem 0.7rem 0.6rem;
+  color: #cfe3e8;
+}
+.console-bottom .mini-h {
+  color: #8fa6b5;
+}
+.console-bottom .muted {
+  color: #6a8494;
+}
+.timeline {
+  position: relative;
+  height: 46px;
+}
+.tl-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 23px;
+  border-top: 1px solid #2c4a5e;
+}
+.tl-month {
+  position: absolute;
+  top: 26px;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: #6a8494;
+  pointer-events: none;
+}
+.tl-ev {
+  position: absolute;
+  top: 6px;
+  width: 9px;
+  height: 14px;
+  margin-left: -4.5px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--wr-amber);
+  cursor: pointer;
+}
+.tl-ev.major {
+  top: 1px;
+  height: 19px;
+}
+.tl-ev.conflict {
+  background: var(--wr-red);
+}
+.tl-ev.calm {
+  background: var(--wr-green);
+}
+.tl-ev:hover {
+  outline: 2px solid #fff;
+}
+.tl-fill {
+  position: absolute;
+  top: 38px;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+.tl-fill.buy {
+  border-bottom: 7px solid var(--wr-green);
+}
+.tl-fill.sell {
+  border-top: 7px solid var(--wr-red);
+}
+.tl-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #cfe3e8;
+  opacity: 0.8;
+}
+.console-bottom .race-heat {
+  margin: 0.4rem 0 0;
+}
+.console-bottom .race svg {
+  background: rgba(20, 40, 56, 0.8);
+  height: 54px;
+}
+.console-bottom .race .world-line {
+  stroke: #7f97a6;
+}
+.console-bottom .race .you-line {
+  stroke: #6fd3e0;
+}
+.console-bottom .race .zero {
+  stroke: #2c4a5e;
+}
+.console-bottom .race-key .you {
+  color: #6fd3e0;
+}
+.console-bottom .race-key .wld {
+  color: #7f97a6;
+}
+.console-bottom .heat-grid .cell {
+  border-color: #2c4a5e;
+  color: #dcecef;
+}
+.map-legend {
+  bottom: 8px;
+}
+@media (max-width: 720px) {
+  .ladder .rung:not(.now) {
+    display: none;
+  }
+  .map-stage {
+    aspect-ratio: 1.5 / 1;
+  }
+}

@@ -127,11 +127,6 @@
           <div class="war-title" id="war-title">War Economy</div>
           <div class="war-sub" id="war-sub"></div>
         </div>
-        <div class="tension" title="How tense the world is: market volatility plus the news">
-          <span class="lbl">Tension</span>
-          <div class="gauge"><span id="tension-bar"></span></div>
-          <span id="tension-label" class="num"></span>
-        </div>
         <div class="war-controls">
           <button class="btn primary" id="war-play" data-war="play">Start</button>
           <div class="seg">
@@ -147,6 +142,11 @@
       <div class="war-clock-row"><span id="war-clock" class="clock-text"></span><span id="war-flash" class="war-flash" hidden></span></div>
       <div class="war-grid">
         <section class="map-card">
+          <div class="console-top">
+            <div class="newswire"><span class="newswire-lbl">Wire</span><div class="newswire-track"><div id="war-ticker" class="newswire-items"></div></div></div>
+            <div class="ladder" id="war-ladder" title="Escalation: market volatility plus the news"></div>
+          </div>
+          <div class="map-stage">
           <div id="war-map"></div>
           <div class="map-zoom" aria-label="Map zoom">
             <button data-war="zoom" data-v="in" title="Zoom in">+</button>
@@ -158,6 +158,23 @@
             <span><i class="lg conflict"></i>Conflict</span><span><i class="lg easing"></i>Easing</span>
             <span><i class="lg lane"></i>Shipping lane</span>
           </div>
+          </div>
+          <div class="console-bottom">
+            <div class="timeline-wrap">
+              <div class="mini-h">Timeline <span class="muted">· dispatches above, your trades below · click a dispatch to reread it</span></div>
+              <div id="war-timeline" class="timeline"></div>
+            </div>
+            <div class="race-heat">
+              <div>
+                <div class="mini-h">You vs the World Index</div>
+                <div id="war-race" class="race"></div>
+              </div>
+              <div>
+                <div class="mini-h">Rotation · 5 days vs World</div>
+                <div id="war-heat" class="heat-grid"></div>
+              </div>
+            </div>
+          </div>
           <div id="war-tip" class="war-tip" hidden></div>
           <div id="war-pop" class="war-pop" hidden></div>
           <div id="sitrep" class="sitrep" hidden></div>
@@ -165,16 +182,6 @@
         <aside class="card basket">
           <h3>Your basket</h3>
           <div id="war-acct" class="acct-grid num"></div>
-          <div class="race-heat">
-            <div>
-              <div class="mini-h">You vs the World Index</div>
-              <div id="war-race" class="race"></div>
-            </div>
-            <div>
-              <div class="mini-h">Rotation · 5 days vs World</div>
-              <div id="war-heat" class="heat-grid"></div>
-            </div>
-          </div>
           <div class="field">
             <div class="row"><span>Each click trades</span></div>
             <div class="seg" style="display:flex">

@@ -43,6 +43,7 @@ const BOOK_THESIS: Record<string, ThesisId> = { safety: 'safe', supply: 'supply'
 const CHECK_DAYS = 5;
 const CALL_SECONDS = 10;
 const MAX_CALLS = 5;
+const LADDER = ['Calm', 'Watch', 'Tense', 'Crisis', 'War footing'];
 const BRIEFED_KEY = 'atlas.warBriefed';
 /** How long dots stay on the map, in trading days. */
 const DOT_AFTER_READ = 3;
@@ -104,12 +105,12 @@ const CRISES: Crisis[] = [
   {
     id: 'chill',
     start: '2022-01-18',
-    op: 'Operation Big Chill',
+    op: 'The Eastern Border Crisis',
     a: 'bleak',
     b: ['austeria', 'grevance', 'brittle'],
-    bName: 'the Austeria Pact',
+    bName: 'Austeria',
     neutral: 'discretia',
-    story: "The Bleak Federation has parked a remarkable number of tanks along Austeria's border for what it calls winter exercises. Diplomats are working overtime, energy traders aren't sleeping, and Austeria has just remembered where its gas comes from.",
+    story: "The Bleak Federation has massed troops along Austeria's eastern border and calls it a winter exercise. Talks are under way and energy markets are jumpy: Austeria buys most of its gas from the country now camped on its doorstep.",
     driver: 'a land war and an energy shock',
     real: "Russia's invasion of Ukraine, January to July 2022",
     timeline: [
@@ -122,12 +123,12 @@ const CRISES: Crisis[] = [
   {
     id: 'tantrum',
     start: '2025-02-18',
-    op: 'The Great Tariff Tantrum',
+    op: 'The Tariff Escalation',
     a: 'debts',
     b: ['supplychina', 'apologia', 'grevance'],
-    bName: 'most of its trading partners',
+    bName: 'its trading partners',
     neutral: 'discretia',
-    story: 'The United Debts has rediscovered tariffs and is applying them generously, friends included. Supplychina, North Apologia and Grèvance are drafting retaliation lists and very firm press releases.',
+    story: 'The United Debts has announced sweeping tariffs on imports, allies included. Supplychina, North Apologia and Grèvance are preparing retaliation, and companies with global supply chains are rewriting their forecasts.',
     driver: 'a tariff shock between trading partners',
     real: 'The 2025 US tariff shock, February to August 2025',
     timeline: [
@@ -141,12 +142,12 @@ const CRISES: Crisis[] = [
   {
     id: 'spat',
     start: '2018-09-20',
-    op: 'Trade Spat, Season One',
+    op: 'The Pacific Trade Dispute',
     a: 'debts',
     b: ['supplychina'],
     bName: 'Supplychina',
     neutral: 'deflatia',
-    story: 'The United Debts and Supplychina disagree about who owes whom for the last few hundred billion phones. Both sides keep raising tariffs, "just a little," and promising this round is the last.',
+    story: 'The United Debts and Supplychina are locked in a widening trade dispute over a few hundred billion dollars of goods. Each new round of tariffs is announced as the last one.',
     driver: 'an escalating trade war',
     real: 'The 2018 US–China trade war and the late-2018 selloff, September 2018 to March 2019',
     timeline: [
@@ -160,12 +161,12 @@ const CRISES: Crisis[] = [
   {
     id: 'hormuzzle',
     start: '2023-09-20',
-    op: 'Operation Hormuzzle',
+    op: 'The Gulf Shipping Crisis',
     a: 'crude',
     b: ['debts', 'brittle'],
     bName: 'the allied navies',
     neutral: 'discretia',
-    story: 'Fighting has flared near the Crude Emirates, and the world is staring at the Strait of Hormuzzle, where about a fifth of its oil sails past every day. Shipping insurers have stopped answering the phone.',
+    story: 'Fighting has broken out near the Crude Emirates. About a fifth of the world’s oil passes through the Strait of Hormuzzle, and insurers are repricing every voyage that goes near it.',
     driver: 'fear for the world’s oil supply',
     real: 'The October 2023 Middle East conflict, September 2023 to March 2024',
     timeline: [
@@ -372,6 +373,8 @@ export class WarRoom {
   private briefing = new WarBriefing();
   private flashTimer = 0;
   private cam: Cam = { ...HOME };
+  /** Width over height of the map stage. */
+  private aspect = 2;
   /** Where the camera goes back to after it flies in to a story. */
   private returnCam: Cam | null = null;
   private camAnim = 0;
@@ -481,6 +484,8 @@ export class WarRoom {
     this.renderLog();
     this.renderHead();
     this.renderHeat();
+    this.renderTicker();
+    this.renderTimeline();
     this.setPhase('briefing');
     $('#sitrep').innerHTML = this.sitrep();
     let briefed = true;
@@ -523,7 +528,9 @@ export class WarRoom {
         .replace('{A}', name(this.crisis.a))
         .replace('{B}', this.crisis.bName)
         .replace('{N}', name(this.crisis.neutral))
-        .replace('{W}', name(where));
+        .replace('{W}', name(where))
+        // Nations whose names start with "The" shouldn't read "the The".
+        .replace(/\bthe The /g, 'the ');
       out.push({
         id: out.length,
         idx: c.i,
@@ -577,6 +584,7 @@ export class WarRoom {
     this.renderMap();
     this.renderHead();
     this.renderHeat();
+    this.renderTimeline();
   }
 
   private onEnd() {
@@ -589,6 +597,8 @@ export class WarRoom {
     this.revealed.push(e);
     this.renderMap();
     this.renderLog();
+    this.renderTicker();
+    this.renderTimeline();
     if (e.major && this.phase === 'playing') {
       this.pause();
       this.focus(e, e.call);
@@ -826,15 +836,17 @@ export class WarRoom {
     this.applyCamera();
   }
 
+  private caseLabel() {
+    return `Case ${String(CRISES.indexOf(this.crisis) + 1).padStart(2, '0')}`;
+  }
+
   private renderHead() {
     const c = this.crisis;
-    $('#war-title').textContent = c.op;
+    $('#war-title').innerHTML = `<span class="case">${this.caseLabel()}</span>${c.op}`;
     $('#war-sub').textContent = `${name(c.a)} vs ${c.bName} · real prices from a real crisis, revealed at the end`;
     const t = Math.round(this.tension);
-    const label = t < 20 ? 'Calm seas' : t < 40 ? 'Uneasy' : t < 60 ? 'Tense' : t < 80 ? 'Crisis' : 'Full war footing';
-    $('#tension-bar').style.width = `${t}%`;
-    $('.gauge').style.setProperty('--fill', `${t}%`);
-    $('#tension-label').textContent = `${label} · ${t}`;
+    const level = Math.min(LADDER.length - 1, Math.floor(t / 20));
+    $('#war-ladder').innerHTML = LADDER.map((l, k) => `<span class="rung r${k} ${k <= level ? 'lit' : ''} ${k === level ? 'now' : ''}">${l}</span>`).join('');
     const played = Math.max(0, this.cur - PRE + 1);
     $('#war-clock').textContent = `${this.labels[this.cur] ?? ''} · day ${played} of ${PLAY}`;
   }
@@ -879,6 +891,7 @@ export class WarRoom {
       <div><div class="lbl">Cash</div><div>${money(this.port.cash)}</div></div>
       <div><div class="lbl">Exposure</div><div>${((this.port.gross(px) / eq) * 100).toFixed(0)}% of equity</div></div>`;
     this.renderRace(eq);
+    if (full) this.renderTimeline();
   }
 
   /** You against the World Index since the crisis began, with the forming bar live at the end. */
@@ -927,6 +940,39 @@ export class WarRoom {
         return `<div class="cell ${a > 0.45 ? 'strong' : ''}" style="background:${started ? bg : 'transparent'}" title="${inst.id === 'world' ? 'World Index, last 5 days' : `${inst.name} minus the World Index, last 5 days`}"><span>${label}</span><b class="num">${started ? `${v > 0 ? '+' : ''}${v.toFixed(1)}` : '—'}</b></div>`;
       })
       .join('');
+  }
+
+  /** The wire: recent dispatches scrolling across the top of the console. */
+  private renderTicker() {
+    const items = this.revealed.slice(-8).reverse();
+    const el = $('#war-ticker');
+    if (!items.length) {
+      el.className = 'newswire-items idle';
+      el.textContent = 'No dispatches yet. Desks are watching.';
+      return;
+    }
+    const html = items.map((e) => `<span class="newswire-item ${e.tone}"><b>${this.labels[e.idx].split(' · ')[0]}</b> ${e.headline}</span>`).join('');
+    el.className = 'newswire-items';
+    // Two copies scroll as one seamless loop.
+    el.innerHTML = html + html;
+    el.style.animationDuration = `${Math.max(24, items.length * 9)}s`;
+  }
+
+  /** Days 1 to 120: dispatches above the line, your trades below, and where you are now. */
+  private renderTimeline() {
+    const x = (idx: number) => `${(((idx - PRE + 0.5) / PLAY) * 100).toFixed(2)}%`;
+    const evs = this.revealed
+      .map((e) => `<button class="tl-ev ${e.tone} ${e.major ? 'major' : ''}" style="left:${x(e.idx)}" data-dot="${e.id}" title="${this.labels[e.idx]}: ${e.headline.replace(/"/g, '&quot;')}"></button>`)
+      .join('');
+    const fills = this.fills
+      .filter((f) => f.opening)
+      .map((f) => `<span class="tl-fill ${f.dq > 0 ? 'buy' : 'sell'}" style="left:${x(f.idx)}" title="${this.labels[f.idx]}: ${f.dq > 0 ? 'bought' : 'shorted'} ${this.inst(f.inst).name}${f.thesis ? ` (${thesisName(f.thesis)})` : ''}"></span>`)
+      .join('');
+    const months = this.ticks
+      .map((t, i) => (i >= PRE && !/\d/.test(t) ? `<span class="tl-month" style="left:${x(i)}">${t}</span>` : ''))
+      .join('');
+    const head = this.cur >= PRE ? `<span class="tl-head" style="left:${x(this.cur)}"></span>` : '';
+    $('#war-timeline').innerHTML = `<div class="tl-line"></div>${months}${evs}${fills}${head}`;
   }
 
   private renderLog() {
@@ -991,16 +1037,24 @@ export class WarRoom {
 
   // ---------- Camera ----------
 
+  /**
+   * The visible part of the map. The view always matches the console's shape:
+   * fully zoomed out it covers the stage (trimming the far edges a little)
+   * rather than leaving empty bands.
+   */
   private view(c = this.cam) {
-    const w = MAP.w / c.k;
-    const h = MAP.h / c.k;
+    const a = this.aspect;
+    const [w0, h0] = a >= MAP.w / MAP.h ? [MAP.w, MAP.w / a] : [MAP.h * a, MAP.h];
+    const w = w0 / c.k;
+    const h = h0 / c.k;
     return { x: c.x - w / 2, y: c.y - h / 2, w, h };
   }
 
   private clamp(c: Cam): Cam {
     const k = Math.min(MAX_ZOOM, Math.max(1, c.k));
-    const hw = MAP.w / (2 * k);
-    const hh = MAP.h / (2 * k);
+    const { w, h } = this.view({ x: 0, y: 0, k });
+    const hw = w / 2;
+    const hh = h / 2;
     return { k, x: Math.min(MAP.w - hw, Math.max(hw, c.x)), y: Math.min(MAP.h - hh, Math.max(hh, c.y)) };
   }
 
@@ -1047,6 +1101,13 @@ export class WarRoom {
 
   private wireCamera() {
     const el = $('#war-map');
+    new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      this.aspect = r.width / r.height;
+      this.cam = this.clamp(this.cam);
+      this.applyCamera();
+    }).observe(el);
     el.addEventListener(
       'wheel',
       (e) => {
@@ -1056,8 +1117,7 @@ export class WarRoom {
         const [mx, my, fx, fy] = this.toMap(e.clientX, e.clientY);
         const k = Math.min(MAX_ZOOM, Math.max(1, this.cam.k * Math.exp(-e.deltaY * 0.0018)));
         // Keep the point under the cursor where it is.
-        const w = MAP.w / k;
-        const h = MAP.h / k;
+        const { w, h } = this.view({ x: 0, y: 0, k });
         this.cam = this.clamp({ k, x: mx - fx * w + w / 2, y: my - fy * h + h / 2 });
         this.applyCamera();
       },
@@ -1261,7 +1321,7 @@ export class WarRoom {
     const c = this.crisis;
     const l = this.lesson;
     return `
-      <div class="kicker">Situation report</div>
+      <div class="kicker">Situation report · ${this.caseLabel()}</div>
       <h3 class="op">${c.op}</h3>
       <p>${c.story}</p>
       <p class="muted">You manage $100,000 across six markets. Buy what you think will win, short what you think will lose, and move money as the news breaks. Pick a thesis before you trade: it gets checked against what happens next. Positions can total up to ${MAX_GROSS}× your equity.</p>
@@ -1341,7 +1401,7 @@ export class WarRoom {
 
     return `
       <h2 id="debrief-title" style="margin:0">After-action review</h2>
-      <p class="muted" style="margin:0.2rem 0 0.6rem">${this.crisis.op}</p>
+      <p class="muted" style="margin:0.2rem 0 0.6rem">${this.caseLabel()} · ${this.crisis.op}</p>
       <div class="stat-row num">
         <div class="stat"><div class="lbl">You</div><div class="val ${tone(f.ret)}">${pct(f.ret, 1)}</div></div>
         <div class="stat"><div class="lbl">Just hold the World Index</div><div class="val ${tone(f.world)}">${pct(f.world, 1)}</div></div>
