@@ -24,7 +24,7 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
+      <button class="brand" data-home title="Home" aria-label="Atlas home">
         <svg class="rose" viewBox="0 0 32 32" aria-hidden="true">
           <circle cx="16" cy="16" r="14.5" fill="none" stroke="currentColor" stroke-width="1" />
           <circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="0.6" stroke-dasharray="1 2" />
@@ -33,7 +33,7 @@
         </svg>
         <span class="wordmark">Atlas</span>
         <span class="sub">Trading Desk</span>
-      </div>
+      </button>
       <nav class="tabs" role="tablist">
         <button data-view="sim" class="active" role="tab">Simulator</button>
         <button data-view="war" role="tab">War Room</button>
@@ -46,7 +46,29 @@
       </div>
     </header>
 
-    <main id="view-sim" class="sim">
+    <main id="view-home" class="home">
+      <div class="home-inner">
+        <img class="home-mark" src="icons/icon.svg" alt="" />
+        <h1 class="home-title">Atlas</h1>
+        <p class="home-tag">Practice trading on real market history, in disguise.</p>
+        <nav class="doors" aria-label="Where to">
+          <button class="door" data-go="sim">
+            <span class="door-title">Simulator <span class="door-badge" id="door-start">Start here</span></span>
+            <span class="door-sub" id="door-sim-sub">One stock, one chart. Learn to read it and trade it.</span>
+          </button>
+          <button class="door" data-go="war">
+            <span class="door-title">War Room</span>
+            <span class="door-sub">Zoom out: follow the money when the world shakes.</span>
+          </button>
+          <button class="door" data-go="lessons">
+            <span class="door-title">Lessons &amp; Progress</span>
+            <span class="door-sub">Your skills, and what to practice next.</span>
+          </button>
+        </nav>
+      </div>
+    </main>
+
+    <main id="view-sim" class="sim" hidden>
       <aside class="desk">
         <div class="seg desk-tabs">
           <button data-desk="scenario" class="active">Scenario</button>

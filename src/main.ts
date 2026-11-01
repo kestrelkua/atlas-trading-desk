@@ -741,8 +741,41 @@ function setPhaseBanner() {
 // ---------- Tutorial ----------
 
 function startTutorial() {
-  document.querySelector<HTMLElement>('.tabs [data-view="sim"]')?.click();
+  simStarted = true;
+  showView('sim');
   newRound({ tutorial: true });
+}
+
+// ---------- Views ----------
+
+/** The Simulator loads its first round only when you first open it, so Home stays calm. */
+let simStarted = false;
+
+function showView(view: string) {
+  if (view !== 'sim' && tutorial.active && !tutorial.free) return;
+  document.body.dataset.view = view;
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.view === view));
+  for (const v of ['home', 'sim', 'war', 'lessons']) $(`#view-${v}`).hidden = v !== view;
+  if (view !== 'sim' && state.phase === 'playing') togglePlay();
+  if (view !== 'war') war.pause();
+  if (view === 'lessons') renderLessons();
+  if (view === 'war') war.ensureStarted();
+  if (view === 'home') renderHome();
+  if (view === 'sim' && !simStarted) {
+    if (state.profile.tutorialDone) {
+      simStarted = true;
+      newRound();
+    } else startTutorial();
+  }
+  window.scrollTo(0, 0);
+}
+
+function renderHome() {
+  const fresh = !state.profile.tutorialDone;
+  $('#door-start').hidden = !fresh;
+  $('#door-sim-sub').textContent = fresh
+    ? 'One stock, one chart. A guided four-minute first round.'
+    : 'One stock, one chart. Learn to read it and trade it.';
 }
 
 function finishTutorial() {
@@ -788,19 +821,8 @@ document.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
   if (!target.closest('.cal-wrap') && !$('#cal-panel').hidden && !tutorial.active) toggleCalendar(false);
   const el = target.closest<HTMLElement>('[data-act]');
-  if (target.closest('.tabs button')) {
-    const view = target.closest<HTMLElement>('.tabs button')!.dataset.view!;
-    if (view !== 'sim' && tutorial.active && !tutorial.free) return;
-    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.view === view));
-    $('#view-sim').hidden = view !== 'sim';
-    $('#view-war').hidden = view !== 'war';
-    $('#view-lessons').hidden = view !== 'lessons';
-    if (view !== 'sim' && state.phase === 'playing') togglePlay();
-    if (view !== 'war') war.pause();
-    if (view === 'lessons') renderLessons();
-    if (view === 'war') war.ensureStarted();
-    return;
-  }
+  const nav = target.closest<HTMLElement>('.tabs button, [data-go], [data-home]');
+  if (nav) return showView(nav.dataset.view ?? nav.dataset.go ?? 'home');
   if (target.closest('[data-war-new]')) return war.newFromDebrief();
   const deskBtn = target.closest<HTMLElement>('[data-desk]');
   if (deskBtn) {
@@ -956,8 +978,8 @@ document.addEventListener('keydown', (e) => {
   } else if ('12345'.includes(k)) setSpeed([0.5, 1, 2, 4, 8][Number(k) - 1]);
 });
 
-if (state.profile.tutorialDone) newRound();
-else startTutorial();
+renderLevelBadge();
+showView('home');
 
 // Handy for poking at the game from the browser console during development.
 if (import.meta.env.DEV) Object.assign(window, { atlas: { state, chart } });

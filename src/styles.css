@@ -2275,3 +2275,101 @@ table.plain th.r {
     min-width: 30px;
   }
 }
+/* ---------- Home ---------- */
+button.brand {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+button.brand:hover .wordmark {
+  color: var(--accent);
+}
+/* Home keeps the top bar quiet: just the logo and the theme switch. */
+body[data-view='home'] .tabs,
+body[data-view='home'] .level-badge,
+body[data-view='home'] #help-btn {
+  display: none;
+}
+.home {
+  min-height: calc(100vh - 60px);
+  min-height: calc(100dvh - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem 3rem;
+}
+.home-inner {
+  width: min(520px, 100%);
+  text-align: center;
+}
+.home-mark {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+}
+.home-title {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-weight: 700;
+  font-size: 2.4rem;
+  letter-spacing: 0.22em;
+  margin: 0.7rem 0 0.1rem;
+  padding-left: 0.22em;
+}
+.home-tag {
+  color: var(--ink-2);
+  font-style: italic;
+  margin: 0 0 1.8rem;
+}
+.doors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.door {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.door:hover,
+.door:focus-visible {
+  border-color: var(--accent);
+  background: var(--paper-2);
+}
+.door:active {
+  transform: scale(0.99);
+}
+.door-title {
+  font-weight: 700;
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.door-sub {
+  color: var(--ink-2);
+}
+.door-badge {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+}
+.door-badge[hidden] {
+  display: none;
+}
