@@ -7,6 +7,7 @@ npm install
 npm run fetch-data   # pulls price history into public/data (already done once)
 npm run build-map    # bakes the War Room map into src/mapdata.ts (already done once)
 npm run dev
+# Pushing to main deploys to https://kestrelkua.github.io/atlas-trading-desk/ (GitHub Actions)
 ```
 
 - `scripts/fetch-data.mjs`: downloads daily (10y) and 5-minute (60d) bars for the stocks, sector ETFs and SPY

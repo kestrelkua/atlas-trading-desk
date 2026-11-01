@@ -8,8 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "fetch-data": "node scripts/fetch-data.mjs",
-    "build-map": "node scripts/build-map.mjs",
-    "deploy": "sh scripts/deploy-pages.sh"
+    "build-map": "node scripts/build-map.mjs"
   },
   "dependencies": {
     "lightweight-charts": "4.2.0"
