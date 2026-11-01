@@ -141,18 +141,30 @@
             <button data-war="speed" data-v="8">8×</button>
           </div>
           <button class="btn ghost" data-war="new">New crisis</button>
+          <button class="btn ghost" data-war="brief" title="Replay the War Room briefing">How it works</button>
         </div>
       </div>
       <div class="war-clock-row"><span id="war-clock" class="clock-text"></span><span id="war-flash" class="war-flash" hidden></span></div>
       <div class="war-grid">
         <section class="map-card">
           <div id="war-map"></div>
+          <div id="war-tip" class="war-tip" hidden></div>
           <div id="war-pop" class="war-pop" hidden></div>
           <div id="sitrep" class="sitrep" hidden></div>
         </section>
         <aside class="card basket">
           <h3>Your basket</h3>
           <div id="war-acct" class="acct-grid num"></div>
+          <div class="race-heat">
+            <div>
+              <div class="mini-h">You vs the World Index</div>
+              <div id="war-race" class="race"></div>
+            </div>
+            <div>
+              <div class="mini-h">Rotation · 5 days vs World</div>
+              <div id="war-heat" class="heat-grid"></div>
+            </div>
+          </div>
           <div class="field">
             <div class="row"><span>Each click trades</span></div>
             <div class="seg" style="display:flex">
@@ -165,6 +177,10 @@
             <thead><tr><th>Market</th><th class="r">Price</th><th class="r">Move</th><th class="r">Position</th><th class="r">P&amp;L</th><th></th></tr></thead>
             <tbody id="basket-rows"></tbody>
           </table>
+          <div class="playbooks">
+            <div class="mini-h">Playbooks <span class="muted">· one click, several markets, at your trade size</span></div>
+            <div id="war-plays" class="plays"></div>
+          </div>
           <p class="hint">Click a market's name to chart it. + buys, − sells (or shorts), × closes.</p>
         </aside>
         <section class="card war-chart">

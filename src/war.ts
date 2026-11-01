@@ -4,7 +4,9 @@ import { Indicators } from './indicators';
 import { Replay, buildPath, partialAt } from './replay';
 import type { Bar, Raw } from './types';
 import { money, pct, tone } from './ui';
-import { PLACES, centroid, countryById, renderMap, type MapDot } from './worldmap';
+import { MAP } from './mapdata';
+import { WarBriefing } from './warbriefing';
+import { ICON_INFO, LANE_INFO, PLACE_INFO, anchor, nationById, placeName, renderMap, type Light, type MapDot } from './worldmap';
 
 const PRE = 60;
 const PLAY = 120;
@@ -24,6 +26,16 @@ export const BASKET = [
 ] as const;
 type InstId = (typeof BASKET)[number]['id'];
 
+/** One-click macro trades: the classic crisis moves, each named after the pattern it plays. */
+const PLAYBOOKS: { id: string; name: string; legs: [InstId, 1 | -1][]; hint: string }[] = [
+  { id: 'safety', name: 'Flight to safety', legs: [['world', -1], ['gold', 1]], hint: 'Sell the World Index, buy Gold. For when fear is spreading.' },
+  { id: 'supply', name: 'Supply shock', legs: [['energy', 1], ['airlines', -1]], hint: "Buy Energy, short Airlines. For when oil can't get out." },
+  { id: 'hedge', name: 'Escalation hedge', legs: [['defense', 1], ['gold', 1]], hint: 'Buy Defense and Gold. Insurance in case things get worse.' },
+  { id: 'relief', name: 'Relief rally', legs: [['world', 1], ['tech', 1], ['airlines', 1]], hint: 'Buy the World Index, Tech and Airlines. For when peace breaks out.' },
+  { id: 'cash', name: 'Go to cash', legs: [], hint: 'Close every position.' },
+];
+const BRIEFED_KEY = 'atlas.warBriefed';
+
 interface Crisis {
   id: string;
   start: string;
@@ -42,50 +54,50 @@ const CRISES: Crisis[] = [
     id: 'chill',
     start: '2022-01-18',
     op: 'Operation Big Chill',
-    a: 'bearlandia',
-    b: ['autobahnia', 'bonjouria', 'tealand'],
-    bName: 'the Snack Pact',
-    neutral: 'cricketania',
-    story: "Bearlandia has massed troops along the Snack Pact's border. Diplomats are working overtime, energy traders are not sleeping, and everyone is checking the price of gas.",
+    a: 'bleak',
+    b: ['austeria', 'grevance', 'brittle'],
+    bName: 'the Austeria Pact',
+    neutral: 'discretia',
+    story: "The Bleak Federation has parked a remarkable number of tanks along Austeria's border for what it calls winter exercises. Diplomats are working overtime, energy traders aren't sleeping, and Austeria has just remembered where its gas comes from.",
     real: "Russia's invasion of Ukraine, January to July 2022",
   },
   {
     id: 'tantrum',
     start: '2025-02-18',
     op: 'The Great Tariff Tantrum',
-    a: 'murica',
-    b: ['dragonia', 'canadia', 'bonjouria'],
-    bName: 'basically everyone',
-    neutral: 'savannia',
-    story: "'Murica has discovered tariffs and likes them very much. Dragonia, Canadia and Bonjouria are drafting strongly worded spreadsheets in response.",
+    a: 'debts',
+    b: ['supplychina', 'apologia', 'grevance'],
+    bName: 'most of its trading partners',
+    neutral: 'discretia',
+    story: 'The United Debts has rediscovered tariffs and is applying them generously, friends included. Supplychina, North Apologia and Grèvance are drafting retaliation lists and very firm press releases.',
     real: 'The 2025 US tariff shock, February to August 2025',
   },
   {
     id: 'spat',
     start: '2018-09-20',
     op: 'Trade Spat, Season One',
-    a: 'murica',
-    b: ['dragonia'],
-    bName: 'Dragonia',
-    neutral: 'sunrisia',
-    story: "'Murica and Dragonia are arguing over who owes whom for the last few hundred billion phones. Both sides keep raising tariffs, \"just a little.\"",
+    a: 'debts',
+    b: ['supplychina'],
+    bName: 'Supplychina',
+    neutral: 'deflatia',
+    story: 'The United Debts and Supplychina disagree about who owes whom for the last few hundred billion phones. Both sides keep raising tariffs, "just a little," and promising this round is the last.',
     real: 'The 2018 US–China trade war and the late-2018 selloff, September 2018 to March 2019',
   },
   {
-    id: 'hmmuz',
+    id: 'hormuzzle',
     start: '2023-09-20',
-    op: 'Operation Hmm-uz',
-    a: 'petrolia',
-    b: ['murica', 'tealand'],
-    bName: 'the Snack Pact navies',
-    neutral: 'cricketania',
-    story: 'Fighting has flared near Petrolia, and everyone is staring nervously at the Strait of Hmm-uz, where a big share of the world’s oil sails past every day.',
+    op: 'Operation Hormuzzle',
+    a: 'crude',
+    b: ['debts', 'brittle'],
+    bName: 'the allied navies',
+    neutral: 'discretia',
+    story: 'Fighting has flared near the Crude Emirates, and the world is staring at the Strait of Hormuzzle, where about a fifth of its oil sails past every day. Shipping insurers have stopped answering the phone.',
     real: 'The October 2023 Middle East conflict, September 2023 to March 2024',
   },
 ];
 
 type Tone = MapDot['tone'];
-type Lights = Record<string, 'red' | 'amber' | 'green'>;
+type Lights = Record<string, Light>;
 
 interface Rule {
   inst: InstId;
@@ -97,11 +109,13 @@ interface Rule {
   detail: string;
   watch: string;
   lights(c: Crisis, where: string): Lights;
+  /** A shipping lane this kind of news cuts on the map. */
+  cut?: string;
 }
 
 const pickOne = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const fromB = (c: Crisis) => pickOne(c.b);
-const name = (id: string) => (id in PLACES ? PLACES[id].name : countryById(id).name);
+const name = placeName;
 const conflictLights = (c: Crisis): Lights => Object.fromEntries([[c.a, 'red'], ...c.b.map((b) => [b, 'amber'])]);
 const calmLights = (c: Crisis): Lights => Object.fromEntries([c.a, ...c.b].map((x) => [x, 'green']));
 
@@ -119,33 +133,33 @@ const RULES: Rule[] = [
   },
   {
     inst: 'world', dir: 1, z: 2.2, tone: 'calm', where: (c) => c.neutral,
-    headlines: ['Talks open in neutral {N}; relief rally', 'Back-channel deal between {A} and {B} reported; stocks jump', '{A} signals a pause; buyers rush back'],
+    headlines: ['Talks open in {N}; relief rally', 'Back-channel deal between {A} and {B} reported; stocks jump', '{A} signals a pause; buyers rush back'],
     detail: 'Hope is back, at least for today. Relief rallies can be violent, and shorts get squeezed. The question is whether it lasts.',
     watch: 'World Index, Airlines, Tech', lights: calmLights,
   },
   {
-    inst: 'energy', dir: 1, z: 2, tone: 'conflict', where: () => 'strait',
-    headlines: ['Tankers dodge the Strait of Hmm-uz; oil spikes', '{A} threatens pipeline flows; energy surges', 'Insurers hike rates for ships near the Strait of Hmm-uz'],
+    inst: 'energy', dir: 1, z: 2, tone: 'conflict', where: () => 'hormuzzle', cut: 'hormuzzle',
+    headlines: ['Tankers divert from the Strait of Hormuzzle; oil spikes', '{A} threatens pipeline flows; energy surges', 'Insurers triple rates for ships near the Strait of Hormuzzle'],
     detail: 'Supply scares push oil producers up and hurt anyone who burns fuel, airlines first of all.',
-    watch: 'Energy, Airlines', lights: (c) => ({ petrolia: 'amber', [c.a]: 'red' }),
+    watch: 'Energy, Airlines', lights: (c) => ({ crude: 'amber', [c.a]: 'red' }),
   },
   {
-    inst: 'energy', dir: -1, z: 2, tone: 'econ', where: () => 'petrolia',
-    headlines: ['Petrolia opens the taps to calm prices; crude slides', 'Oil glut fears return as {N} boosts output'],
+    inst: 'energy', dir: -1, z: 2, tone: 'econ', where: () => 'crude',
+    headlines: ['The Crude Emirates open the taps to calm prices; oil slides', 'Oil glut fears return as {W} boosts output'],
     detail: 'More supply means cheaper oil: bad for producers, a gift for airlines.',
-    watch: 'Energy, Airlines', lights: () => ({ petrolia: 'green' }),
+    watch: 'Energy, Airlines', lights: () => ({ crude: 'green' }),
   },
   {
     inst: 'defense', dir: 1, z: 1.8, tone: 'econ', where: fromB,
-    headlines: ['{W} votes record defense budget; arms makers rally', '{W} orders a very large number of very expensive jets', 'Snack Pact pledges to spend more on defense'],
+    headlines: ['{W} votes a record defense budget; arms makers rally', '{W} orders a very large number of very expensive jets', '{W} pledges to spend more on defense, again'],
     detail: 'Governments ordering weapons is direct revenue for defense companies, often for years.',
     watch: 'Defense', lights: (_c, w) => ({ [w]: 'amber' }),
   },
   {
-    inst: 'gold', dir: 1, z: 1.8, tone: 'econ', where: () => 'tealand',
-    headlines: ['Gold vaults in Tealand run short of shelf space', 'Investors flee to gold as the {A} standoff drags on'],
+    inst: 'gold', dir: 1, z: 1.8, tone: 'econ', where: () => 'discretia',
+    headlines: ['Vaults in Discretia report a waiting list', 'Investors flee to gold as the {A} standoff drags on'],
     detail: 'When people get scared, they buy things that have held value for thousands of years.',
-    watch: 'Gold', lights: () => ({ tealand: 'amber' }),
+    watch: 'Gold', lights: () => ({ discretia: 'amber' }),
   },
   {
     inst: 'airlines', dir: -1, z: 2, tone: 'conflict', where: (c) => c.a,
@@ -160,16 +174,16 @@ const RULES: Rule[] = [
     watch: 'Airlines', lights: (c) => ({ [c.neutral]: 'green' }),
   },
   {
-    inst: 'tech', dir: -1, z: 2, tone: 'econ', where: () => 'dragonia',
-    headlines: ['Chip shipments from Dragonia stall; tech sells off', 'New export rules hit gadget makers'],
+    inst: 'tech', dir: -1, z: 2, tone: 'econ', where: () => 'fab', cut: 'fab',
+    headlines: ['Chip shipments through the Fab Strait stall; tech sells off', 'New export rules hit gadget makers in Supplychina'],
     detail: 'Tech depends on long global supply chains. Any disruption shows up in the price.',
-    watch: 'Tech', lights: () => ({ dragonia: 'amber' }),
+    watch: 'Tech', lights: () => ({ supplychina: 'amber' }),
   },
   {
-    inst: 'tech', dir: 1, z: 2, tone: 'calm', where: () => 'sunrisia',
+    inst: 'tech', dir: 1, z: 2, tone: 'calm', where: () => 'deflatia',
     headlines: ['Tech giants shrug off the crisis with blowout sales', 'Investors pile back into growth stocks'],
     detail: 'Risk appetite is back. Growth stocks lead when fear fades.',
-    watch: 'Tech', lights: () => ({ sunrisia: 'green' }),
+    watch: 'Tech', lights: () => ({ deflatia: 'green' }),
   },
 ];
 
@@ -183,6 +197,7 @@ interface WarEvent {
   at: [number, number];
   place: string;
   lights: Lights;
+  cut?: string;
   major: boolean;
 }
 
@@ -266,10 +281,17 @@ export class WarRoom {
   private baseVol = 1;
   private chart: ChartView;
   private lastCrisis = '';
+  /** Your return and the World Index's, in %, at each closed bar since the crisis began. */
+  private race: { you: number[]; world: number[] } = { you: [0], world: [0] };
+  private briefing = new WarBriefing();
+  private flashTimer = 0;
 
   constructor() {
     this.chart = new ChartView($('#war-chart-main'), $('#war-chart-macd'));
     $('#view-war').addEventListener('click', (e) => this.onClick(e));
+    $('#war-map').addEventListener('mousemove', (e) => this.hover(e));
+    $('#war-map').addEventListener('mouseleave', () => ($('#war-tip').hidden = true));
+    $('#war-plays').innerHTML = PLAYBOOKS.map((p) => `<button class="btn small play" data-war="play-book" data-v="${p.id}" title="${p.hint}">${p.name}</button>`).join('');
   }
 
   /** Called when the tab is shown for the first time. */
@@ -331,6 +353,7 @@ export class WarRoom {
     this.events = this.buildEvents();
     this.revealed = [];
     this.port = new Portfolio();
+    this.race = { you: [0], world: [0] };
     this.cur = PRE - 1;
     this.tension = 25;
     this.replay = new Replay(world, PRE, {
@@ -345,9 +368,15 @@ export class WarRoom {
     this.renderMap();
     this.renderLog();
     this.renderHead();
+    this.renderHeat();
     this.setPhase('briefing');
     $('#sitrep').innerHTML = this.sitrep();
-    $('#sitrep').hidden = false;
+    let briefed = true;
+    try {
+      briefed = localStorage.getItem(BRIEFED_KEY) === '1';
+    } catch {}
+    if (briefed) $('#sitrep').hidden = false;
+    else this.brief();
     $('#war-pop').hidden = true;
   }
 
@@ -376,8 +405,8 @@ export class WarRoom {
       if (out.length >= 14) break;
       if (out.some((e) => Math.abs(e.idx - c.i) < 3)) continue;
       const where = c.rule.where(this.crisis);
-      const base = where in PLACES ? PLACES[where].at : centroid(countryById(where));
-      const jitter = () => (Math.random() - 0.5) * 22;
+      const base = anchor(where);
+      const jitter = () => (Math.random() - 0.5) * 14;
       const headline = pickOne(c.rule.headlines)
         .replace('{A}', name(this.crisis.a))
         .replace('{B}', this.crisis.bName)
@@ -393,6 +422,7 @@ export class WarRoom {
         at: [base[0] + jitter(), base[1] + jitter()],
         place: name(where),
         lights: c.rule.lights(this.crisis, where),
+        cut: c.rule.cut,
         major: c.z >= 1.5,
       });
     }
@@ -425,8 +455,13 @@ export class WarRoom {
     const news = this.revealed.filter((e) => e.idx > i - 10).reduce((s, e) => s + (e.tone === 'conflict' ? 9 : e.tone === 'calm' ? -7 : 2), 0);
     const target = Math.max(0, Math.min(100, 15 + 30 * (vol / this.baseVol - 0.6) + news));
     this.tension += (target - this.tension) * 0.35;
+    if (i >= PRE) {
+      this.race.you.push((this.port.equity((id) => this.price(id)) / START_CASH - 1) * 100);
+      this.race.world.push((world[i].c / world[PRE - 1].c - 1) * 100);
+    }
     this.renderMap();
     this.renderHead();
+    this.renderHeat();
   }
 
   private onEnd() {
@@ -469,6 +504,61 @@ export class WarRoom {
     this.renderBasket(true);
   }
 
+  /** Runs every leg of a playbook at the chosen size, or none of them if it would break the exposure limit. */
+  private playbook(id: string) {
+    const book = PLAYBOOKS.find((p) => p.id === id)!;
+    if (!this.canTrade()) return this.flash('Trading opens when the crisis starts.');
+    if (!book.legs.length) {
+      const open = Object.keys(this.port.qty).filter((k) => this.port.qty[k]);
+      if (!open.length) return this.flash('You are already all in cash.');
+      for (const k of open) this.port.trade(k, -this.port.qty[k], this.price(k));
+      this.renderBasket(true);
+      return this.flash('Go to cash: every position closed.', 'ok');
+    }
+    const px = (x: string) => this.price(x);
+    const qty = { ...this.port.qty };
+    const dq = book.legs.map(([inst, dir]) => [inst, Math.trunc((dir * this.size) / px(inst))] as const);
+    for (const [inst, q] of dq) qty[inst] = (qty[inst] ?? 0) + q;
+    const gross = Object.entries(qty).reduce((s, [k, q]) => s + Math.abs(q * px(k)), 0);
+    if (gross > MAX_GROSS * this.port.equity(px)) return this.flash(`Limit reached: total positions can't exceed ${MAX_GROSS}× your equity.`);
+    for (const [inst, q] of dq) this.port.trade(inst, q, px(inst));
+    this.renderBasket(true);
+    const verb = (d: number) => (d > 0 ? 'bought' : 'sold');
+    this.flash(`${book.name}: ${book.legs.map(([inst, d]) => `${verb(d)} ${this.inst(inst).name}`).join(', ')}.`, 'ok');
+  }
+
+  private brief() {
+    $('#sitrep').hidden = true;
+    $('#war-pop').hidden = true;
+    this.briefing.start(() => {
+      try {
+        localStorage.setItem(BRIEFED_KEY, '1');
+      } catch {}
+      if (this.phase === 'briefing') $('#sitrep').hidden = false;
+    });
+  }
+
+  private hover(e: MouseEvent) {
+    const t = e.target as Element;
+    const tip = $('#war-tip');
+    const el = t.closest('[data-country],[data-icon],[data-place],[data-lane]');
+    if (!el || t.closest('[data-dot]')) return void (tip.hidden = true);
+    const d = (el as SVGElement).dataset;
+    let html = '';
+    if (d.country) {
+      const n = nationById(d.country)!;
+      html = `<b>${n.name}</b><i>${n.quip}</i><span class="exp">If disrupted: ${n.exposure}</span>`;
+    } else if (d.icon) html = `<b>${ICON_INFO[d.icon]}</b>`;
+    else if (d.place) html = `<b>${placeName(d.place)}</b><i>${PLACE_INFO[d.place]}</i>`;
+    else if (d.lane) html = `<b>${LANE_INFO[d.lane]}</b>${el.classList.contains('cut') ? '<span class="exp">Disrupted right now</span>' : ''}`;
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const host = $('.map-card').getBoundingClientRect();
+    const x = e.clientX - host.left + 14;
+    tip.style.left = `${x + tip.offsetWidth > host.width - 8 ? x - tip.offsetWidth - 28 : x}px`;
+    tip.style.top = `${Math.min(e.clientY - host.top + 14, host.height - tip.offsetHeight - 8)}px`;
+  }
+
   private closePos(id: string) {
     const q = this.port.qty[id] ?? 0;
     if (q && this.canTrade()) {
@@ -507,11 +597,13 @@ export class WarRoom {
     } else if (this.phase === 'playing') this.pause();
   }
 
-  private flash(msg: string) {
+  private flash(msg: string, kind: 'warn' | 'ok' = 'warn') {
     const el = $('#war-flash');
     el.textContent = msg;
+    el.classList.toggle('ok', kind === 'ok');
     el.hidden = false;
-    window.setTimeout(() => (el.hidden = true), 2800);
+    window.clearTimeout(this.flashTimer);
+    this.flashTimer = window.setTimeout(() => (el.hidden = true), 3200);
   }
 
   private onClick(e: Event) {
@@ -560,6 +652,13 @@ export class WarRoom {
         $('#war-pop').hidden = true;
         if (this.phase === 'paused') this.togglePlay();
         break;
+      case 'play-book':
+        this.playbook(v);
+        break;
+      case 'brief':
+        this.pause();
+        this.brief();
+        break;
       case 'dismiss':
         $('#war-pop').hidden = true;
         break;
@@ -576,7 +675,8 @@ export class WarRoom {
 
   private renderMap() {
     const dots: MapDot[] = this.revealed.map((e) => ({ id: e.id, at: e.at, tone: e.tone, fresh: e.idx > this.cur - 3 }));
-    $('#war-map').innerHTML = renderMap(this.lights(), dots, this.tension, true);
+    const cuts = new Set(this.revealed.filter((e) => e.cut && e.idx > this.cur - 10).map((e) => e.cut!));
+    $('#war-map').innerHTML = renderMap({ lit: this.lights(), dots, cuts, tension: this.tension });
   }
 
   private renderHead() {
@@ -631,6 +731,55 @@ export class WarRoom {
       <div><div class="lbl">Return</div><div class="val ${tone(ret)}">${pct(ret, 2)}</div></div>
       <div><div class="lbl">Cash</div><div>${money(this.port.cash)}</div></div>
       <div><div class="lbl">Exposure</div><div>${((this.port.gross(px) / eq) * 100).toFixed(0)}% of equity</div></div>`;
+    this.renderRace(eq);
+  }
+
+  /** You against the World Index since the crisis began, with the forming bar live at the end. */
+  private renderRace(eq: number) {
+    const live = this.phase === 'playing' || this.phase === 'paused';
+    const you = [...this.race.you];
+    const world = [...this.race.world];
+    if (live && this.cur >= PRE) {
+      you.push((eq / START_CASH - 1) * 100);
+      world.push((this.price('world') / this.inst('world').bars[PRE - 1].c - 1) * 100);
+    }
+    const all = [...you, ...world, 0];
+    const lo = Math.min(...all, -1);
+    const hi = Math.max(...all, 1);
+    const W = 240;
+    const H = 64;
+    const x = (i: number) => (i / PLAY) * W;
+    const y = (v: number) => 4 + ((hi - v) / (hi - lo)) * (H - 8);
+    const line = (vs: number[]) => vs.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const ry = you[you.length - 1];
+    const rw = world[world.length - 1];
+    $('#war-race').innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Your return against the World Index">
+        <line class="zero" x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
+        <polyline class="world-line" points="${line(world)}"/>
+        <polyline class="you-line" points="${line(you)}"/>
+      </svg>
+      <div class="race-key num"><span class="you">You ${pct(ry, 1)}</span><span class="ahead ${tone(ry - rw)}">${ry - rw >= 0 ? 'Ahead' : 'Behind'} by ${Math.abs(ry - rw).toFixed(1)} pts</span><span class="wld">World ${pct(rw, 1)}</span></div>`;
+  }
+
+  /** Which markets are winning: each one's last 5 days relative to the World Index (the World Index itself is shown outright). */
+  private renderHeat() {
+    const i = this.cur;
+    const back = Math.max(PRE - 1, i - 5);
+    const chg = (id: InstId) => {
+      const b = this.inst(id).bars;
+      return (b[i].c / b[back].c - 1) * 100;
+    };
+    const w = chg('world');
+    const started = i >= PRE;
+    $('#war-heat').innerHTML = this.insts
+      .map((inst) => {
+        const v = inst.id === 'world' ? w : chg(inst.id) - w;
+        const a = started ? Math.min(Math.abs(v) / 6, 1) * 0.7 + 0.08 : 0;
+        const bg = v > 0 ? `rgba(46, 125, 80, ${a})` : `rgba(178, 58, 46, ${a})`;
+        const label = inst.id === 'world' ? 'World' : inst.name;
+        return `<div class="cell ${a > 0.45 ? 'strong' : ''}" style="background:${started ? bg : 'transparent'}" title="${inst.id === 'world' ? 'World Index, last 5 days' : `${inst.name} minus the World Index, last 5 days`}"><span>${label}</span><b class="num">${started ? `${v > 0 ? '+' : ''}${v.toFixed(1)}` : '—'}</b></div>`;
+      })
+      .join('');
   }
 
   private renderLog() {
@@ -658,8 +807,8 @@ export class WarRoom {
     const svg = $('#war-map svg');
     const r = svg.getBoundingClientRect();
     const host = $('.map-card').getBoundingClientRect();
-    const x = r.left - host.left + (e.at[0] / 1000) * r.width;
-    const y = r.top - host.top + (e.at[1] / 520) * r.height;
+    const x = r.left - host.left + (e.at[0] / MAP.w) * r.width;
+    const y = r.top - host.top + (e.at[1] / MAP.h) * r.height;
     pop.hidden = false;
     pop.style.left = `${Math.min(Math.max(8, x - pop.offsetWidth / 2), host.width - pop.offsetWidth - 8)}px`;
     pop.style.top = `${y + 18 + pop.offsetHeight > host.height ? Math.max(8, y - pop.offsetHeight - 14) : y + 18}px`;

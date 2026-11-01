@@ -1255,63 +1255,177 @@ table.plain th.r {
   width: 100%;
   height: auto;
 }
-.world .grid line {
-  stroke: var(--wr-grid);
-  stroke-width: 1;
+.world .sphere {
+  fill: #0e2131;
 }
-.world .country polygon {
+.world .graticule {
+  fill: none;
+  stroke: var(--wr-grid);
+  stroke-width: 0.6;
+}
+.world .nation {
   fill: var(--wr-land);
   stroke: var(--wr-edge);
-  stroke-width: 1.2;
+  stroke-opacity: 0.45;
+  stroke-width: 0.8;
   stroke-linejoin: round;
-  opacity: 0.9;
+  cursor: pointer;
   transition: fill 0.4s, stroke 0.4s;
 }
-.world .country text {
+.world .nation:hover {
+  fill: #1c3a50;
+}
+.world .nation.tense {
+  fill: rgba(242, 179, 61, 0.14);
+  stroke: var(--wr-amber);
+  stroke-opacity: 0.9;
+}
+.world .nation.conflict {
+  fill: rgba(255, 90, 69, 0.2);
+  stroke: var(--wr-red);
+  stroke-opacity: 1;
+  stroke-width: 1.2;
+}
+.world .nation.easing {
+  fill: rgba(61, 220, 151, 0.12);
+  stroke: var(--wr-green);
+  stroke-opacity: 0.9;
+}
+.world .front {
+  fill: none;
+  stroke: var(--wr-red);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  pointer-events: none;
+  animation: frontPulse 1.4s ease-in-out infinite;
+}
+@keyframes frontPulse {
+  50% {
+    opacity: 0.35;
+    stroke-width: 3.4;
+  }
+}
+.world .lane {
+  fill: none;
+  stroke: var(--wr-edge);
+  stroke-width: 1.3;
+  stroke-dasharray: 5 3;
+  opacity: 0.7;
+  animation: laneFlow 2.4s linear infinite;
+}
+.world .lane.air {
+  stroke: #85b7eb;
+  stroke-width: 0.9;
+  stroke-dasharray: 2 4;
+  opacity: 0.5;
+}
+.world .lane.cut {
+  stroke: var(--wr-red);
+  stroke-dasharray: 3 5;
+  opacity: 0.95;
+  animation: none;
+}
+@keyframes laneFlow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+.world .icon {
+  fill: #d9c48a;
+  opacity: 0.85;
+}
+.world .icon:hover {
+  opacity: 1;
+}
+.world .icon .stroke,
+.world symbol .stroke {
+  fill: none;
+  stroke: #d9c48a;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+.world .label {
   fill: var(--wr-text);
   font-family: 'Alegreya Sans SC', sans-serif;
   font-size: 13px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-anchor: middle;
   pointer-events: none;
 }
-.world .country.red polygon {
-  fill: rgba(255, 90, 69, 0.28);
-  stroke: var(--wr-red);
-  animation: borderPulse 1.4s ease-in-out infinite;
-}
-.world .country.amber polygon {
-  fill: rgba(242, 179, 61, 0.2);
-  stroke: var(--wr-amber);
-}
-.world .country.green polygon {
-  fill: rgba(61, 220, 151, 0.18);
-  stroke: var(--wr-green);
-}
-@keyframes borderPulse {
-  50% {
-    stroke-width: 3;
-    filter: drop-shadow(0 0 6px var(--wr-red));
-  }
+.world .leader {
+  stroke: #4d6878;
+  stroke-width: 0.7;
 }
 .world .place circle {
   fill: var(--wr-edge);
 }
 .world .place text {
   fill: var(--wr-text);
-  font-size: 11px;
+  font-size: 12px;
   font-style: italic;
-  opacity: 0.75;
+  opacity: 0.8;
 }
-.world .sweep path {
-  fill: rgba(63, 182, 201, 0.06);
-  transform-origin: 500px 260px;
-  animation: sweep 8s linear infinite;
+.world .legend rect {
+  fill: var(--wr-bg);
+  opacity: 0.85;
+  stroke: #1d3a50;
 }
-@keyframes sweep {
-  to {
-    transform: rotate(360deg);
+.world .legend text {
+  fill: #93aab9;
+  font-size: 12px;
+}
+.world .legend .lg {
+  stroke-width: 2;
+}
+.world .lg.stable {
+  stroke: var(--wr-edge);
+  opacity: 0.6;
+}
+.world .lg.tense {
+  stroke: var(--wr-amber);
+}
+.world .lg.conflict {
+  stroke: var(--wr-red);
+  stroke-width: 2.6;
+}
+.world .lg.easing {
+  stroke: var(--wr-green);
+}
+.world .lg.lane {
+  stroke: var(--wr-edge);
+  stroke-dasharray: 5 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .world .front,
+  .world .lane,
+  .world .dot.fresh .ring {
+    animation: none;
   }
+}
+.war-tip {
+  position: absolute;
+  z-index: 3;
+  max-width: 250px;
+  pointer-events: none;
+  background: rgba(10, 22, 34, 0.96);
+  color: #dcecef;
+  border: 1px solid #2e4a5c;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.war-tip b {
+  display: block;
+  color: #fff;
+}
+.war-tip i {
+  color: #a9c3cc;
+}
+.war-tip .exp {
+  display: block;
+  color: var(--wr-amber);
+  margin-top: 0.2rem;
 }
 .world .dot {
   cursor: pointer;
@@ -1507,4 +1621,108 @@ table.plain th.r {
   .tension {
     margin-left: 0;
   }
+}
+.war-flash.ok {
+  color: var(--up);
+}
+.mini-h {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  margin: 0.2rem 0 0.3rem;
+}
+.race-heat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  margin: 0.6rem 0;
+}
+.race svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+  background: var(--paper-2);
+  border-radius: 4px;
+}
+.race .zero {
+  stroke: var(--rule);
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+.race polyline {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+.race .world-line {
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+}
+.race .you-line {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+}
+.race-key {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+.race-key .you {
+  color: var(--accent);
+}
+.race-key .wld {
+  color: var(--ink-3);
+}
+.heat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.heat-grid .cell {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.heat-grid .cell.strong {
+  color: #fff;
+}
+.heat-grid .cell span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heat-grid .cell b {
+  font-weight: 700;
+}
+.playbooks {
+  margin: 0.6rem 0 0.2rem;
+}
+.plays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.plays .btn.play {
+  font-size: 0.84rem;
+}
+.coach .t-amber {
+  color: var(--gold);
+}
+.coach .t-red {
+  color: var(--down);
+}
+.coach .t-green {
+  color: var(--up);
+}
+.map-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }

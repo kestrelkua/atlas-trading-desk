@@ -162,7 +162,7 @@ Finish with a one-line prompt: *"What would you do differently?"* It's saved to 
 
 ## 7. A suggested order
 
-**Phase 1: polish (one session)**
+**Phase 1: polish (built in v0.4)**
 - New wry names, hover lines and places.
 - Real-coastline map, resource icons and lanes, border legend, label fixes.
 - Benchmark race line, rotation heatmap, playbooks.

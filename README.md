@@ -5,10 +5,12 @@ A paper-trading simulator that replays real market history in disguise, grades t
 ```bash
 npm install
 npm run fetch-data   # pulls price history into public/data (already done once)
+npm run build-map    # bakes the War Room map into src/mapdata.ts (already done once)
 npm run dev
 ```
 
 - `scripts/fetch-data.mjs`: downloads daily (10y) and 5-minute (60d) bars for the stocks, sector ETFs and SPY
+- `scripts/build-map.mjs`: merges real Natural Earth countries into the War Room's fictional nations and writes `src/mapdata.ts`
 - `src/data.ts`: picks a random stretch, hides its identity, rescales prices
 - `src/replay.ts`: plays bars tick by tick
 - `src/indicators.ts`: SMA, Bollinger, MACD, ATR without lookahead

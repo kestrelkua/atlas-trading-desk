@@ -300,40 +300,44 @@ export class Tutorial {
   }
 
   private place() {
-    if (this.coach.hidden) return;
+    if (!this.active || this.coach.hidden) return;
     const step = STEPS[this.i];
-    const el = step?.target ? document.querySelector<HTMLElement>(step.target) : null;
-    const cw = this.coach.offsetWidth;
-    const ch = this.coach.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    if (!el || el.offsetParent === null) {
-      this.spot.hidden = true;
-      this.coach.style.left = `${(vw - cw) / 2}px`;
-      this.coach.style.top = `${Math.max(16, (vh - ch) / 2)}px`;
-      return;
-    }
-    el.scrollIntoView({ block: 'nearest' });
-    const r = el.getBoundingClientRect();
-    const pad = 6;
-    Object.assign(this.spot.style, {
-      left: `${r.left - pad}px`,
-      top: `${r.top - pad}px`,
-      width: `${r.width + pad * 2}px`,
-      height: `${r.height + pad * 2}px`,
-    });
-    this.spot.hidden = false;
-    // Prefer the side with the most room, then clamp into the viewport.
-    let left: number;
-    let top: number;
-    if (vw - r.right > cw + 24) [left, top] = [r.right + 16, r.top];
-    else if (r.left > cw + 24) [left, top] = [r.left - cw - 16, r.top];
-    else if (vh - r.bottom > ch + 24) [left, top] = [r.left, r.bottom + 16];
-    else [left, top] = [r.left, r.top - ch - 16];
-    if (r.height > vh * 0.6 && r.width > vw * 0.4) [left, top] = [r.left + 24, r.top + 24];
-    this.coach.style.left = `${Math.min(Math.max(16, left), vw - cw - 16)}px`;
-    this.coach.style.top = `${Math.min(Math.max(16, top), vh - ch - 16)}px`;
+    placeCoach(this.coach, this.spot, step?.target ? document.querySelector<HTMLElement>(step.target) : null);
   }
+}
+
+/** Spotlights `el` and parks the coach card beside it, or centers the card when there's no target. */
+export function placeCoach(coach: HTMLElement, spot: HTMLElement, el: HTMLElement | null) {
+  const cw = coach.offsetWidth;
+  const ch = coach.offsetHeight;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!el || el.offsetParent === null) {
+    spot.hidden = true;
+    coach.style.left = `${(vw - cw) / 2}px`;
+    coach.style.top = `${Math.max(16, (vh - ch) / 2)}px`;
+    return;
+  }
+  el.scrollIntoView({ block: 'nearest' });
+  const r = el.getBoundingClientRect();
+  const pad = 6;
+  Object.assign(spot.style, {
+    left: `${r.left - pad}px`,
+    top: `${r.top - pad}px`,
+    width: `${r.width + pad * 2}px`,
+    height: `${r.height + pad * 2}px`,
+  });
+  spot.hidden = false;
+  // Prefer the side with the most room, then clamp into the viewport.
+  let left: number;
+  let top: number;
+  if (vw - r.right > cw + 24) [left, top] = [r.right + 16, r.top];
+  else if (r.left > cw + 24) [left, top] = [r.left - cw - 16, r.top];
+  else if (vh - r.bottom > ch + 24) [left, top] = [r.left, r.bottom + 16];
+  else [left, top] = [r.left, r.top - ch - 16];
+  if (r.height > vh * 0.6 && r.width > vw * 0.4) [left, top] = [r.left + 24, r.top + 24];
+  coach.style.left = `${Math.min(Math.max(16, left), vw - cw - 16)}px`;
+  coach.style.top = `${Math.min(Math.max(16, top), vh - ch - 16)}px`;
 }
 
 const QUOTES = {
