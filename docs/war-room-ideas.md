@@ -168,7 +168,7 @@ Finish with a one-line prompt: *"What would you do differently?"* It's saved to 
 - Benchmark race line, rotation heatmap, playbooks.
 - The 60-second War Room briefing.
 
-**Phase 2: learning (one session)**
+**Phase 2: learning (built in v0.5)**
 - Thesis tags, War Room skills, desk calls.
 - After-action review with the "hold" and "panic seller" comparisons.
 - Three or four War Room lessons.

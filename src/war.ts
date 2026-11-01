@@ -6,6 +6,10 @@ import type { Bar, Raw } from './types';
 import { money, pct, tone } from './ui';
 import { MAP } from './mapdata';
 import { WarBriefing } from './warbriefing';
+import {
+  CALL_POINTS, THESES, WAR_SKILLS, gradeCall, loadWarProfile, recommendWar, recordWarRound, saveWarProfile, scoreWar, thesisName,
+  type CallGrade, type ThesisId, type WarFacts, type WarLesson, type WarScores,
+} from './warlearn';
 import { ICON_INFO, LANE_INFO, PLACE_INFO, anchor, nationById, placeName, renderMap, type Light, type MapDot } from './worldmap';
 
 const PRE = 60;
@@ -34,6 +38,11 @@ const PLAYBOOKS: { id: string; name: string; legs: [InstId, 1 | -1][]; hint: str
   { id: 'relief', name: 'Relief rally', legs: [['world', 1], ['tech', 1], ['airlines', 1]], hint: 'Buy the World Index, Tech and Airlines. For when peace breaks out.' },
   { id: 'cash', name: 'Go to cash', legs: [], hint: 'Close every position.' },
 ];
+const BOOK_THESIS: Record<string, ThesisId> = { safety: 'safe', supply: 'supply', hedge: 'hedge', relief: 'relief' };
+/** Theses and desk calls are checked this many trading days later. */
+const CHECK_DAYS = 5;
+const CALL_SECONDS = 10;
+const MAX_CALLS = 5;
 const BRIEFED_KEY = 'atlas.warBriefed';
 /** How long dots stay on the map, in trading days. */
 const DOT_AFTER_READ = 3;
@@ -58,7 +67,36 @@ interface Crisis {
   bName: string;
   neutral: string;
   story: string;
+  /** What drove it, for the after-action summary. */
+  driver: string;
   real: string;
+  /** What actually happened, revealed at the end. */
+  timeline: [string, string][];
+}
+
+type Snap = Record<string, number>;
+
+/** One fill. Opening fills carry a thesis that gets checked against the data a few days later. */
+interface Fill {
+  idx: number;
+  inst: InstId;
+  dq: number;
+  px: number;
+  opening: boolean;
+  /** Sold the World Index (or went to cash): checked later for panic selling. */
+  derisk: boolean;
+  thesis: ThesisId | null;
+  snap: Snap;
+  verdict?: { right: boolean; why: string; pnl: number };
+}
+
+interface DeskCall {
+  eventId: number;
+  idx: number;
+  choice: string;
+  snap: Snap;
+  outcomes?: Record<string, number>;
+  grade?: CallGrade;
 }
 
 /** Each fictional crisis plays over the real prices of a real geopolitical episode, revealed at the end. */
@@ -72,7 +110,14 @@ const CRISES: Crisis[] = [
     bName: 'the Austeria Pact',
     neutral: 'discretia',
     story: "The Bleak Federation has parked a remarkable number of tanks along Austeria's border for what it calls winter exercises. Diplomats are working overtime, energy traders aren't sleeping, and Austeria has just remembered where its gas comes from.",
+    driver: 'a land war and an energy shock',
     real: "Russia's invasion of Ukraine, January to July 2022",
+    timeline: [
+      ['Feb 24, 2022', 'Russia invades Ukraine. US stocks fall sharply at the open, then close higher the same day.'],
+      ['Mar 8, 2022', 'The US bans Russian oil imports; oil hits its highest price since 2008.'],
+      ['Mar 16, 2022', 'The Federal Reserve starts raising interest rates to fight inflation.'],
+      ['Jun 16, 2022', 'The S&P 500 closes at its lowest level of the first half, down over 20% from its peak.'],
+    ],
   },
   {
     id: 'tantrum',
@@ -83,7 +128,15 @@ const CRISES: Crisis[] = [
     bName: 'most of its trading partners',
     neutral: 'discretia',
     story: 'The United Debts has rediscovered tariffs and is applying them generously, friends included. Supplychina, North Apologia and Grèvance are drafting retaliation lists and very firm press releases.',
+    driver: 'a tariff shock between trading partners',
     real: 'The 2025 US tariff shock, February to August 2025',
+    timeline: [
+      ['Feb 1, 2025', 'The US announces tariffs on Canada, Mexico and China.'],
+      ['Apr 2, 2025', "Sweeping \"Liberation Day\" tariffs are announced on most of the world."],
+      ['Apr 8, 2025', 'The S&P 500 closes nearly 19% below its February peak.'],
+      ['Apr 9, 2025', 'A 90-day tariff pause is announced; the S&P 500 jumps 9.5%, one of its best days ever.'],
+      ['May 12, 2025', 'The US and China agree to cut tariffs for 90 days; stocks rally again.'],
+    ],
   },
   {
     id: 'spat',
@@ -94,7 +147,15 @@ const CRISES: Crisis[] = [
     bName: 'Supplychina',
     neutral: 'deflatia',
     story: 'The United Debts and Supplychina disagree about who owes whom for the last few hundred billion phones. Both sides keep raising tariffs, "just a little," and promising this round is the last.',
+    driver: 'an escalating trade war',
     real: 'The 2018 US–China trade war and the late-2018 selloff, September 2018 to March 2019',
+    timeline: [
+      ['Sep 24, 2018', 'US tariffs on $200 billion of Chinese goods take effect.'],
+      ['Oct 10, 2018', 'The S&P 500 drops over 3% in a day as rate and trade fears collide.'],
+      ['Dec 1, 2018', 'A G20 dinner produces a 90-day trade truce. The relief lasts about a day.'],
+      ['Dec 24, 2018', 'The Christmas Eve low: the S&P 500 is down nearly 20% from its peak.'],
+      ['Jan 4, 2019', 'The Fed signals patience on rates; stocks begin a strong rebound.'],
+    ],
   },
   {
     id: 'hormuzzle',
@@ -105,7 +166,15 @@ const CRISES: Crisis[] = [
     bName: 'the allied navies',
     neutral: 'discretia',
     story: 'Fighting has flared near the Crude Emirates, and the world is staring at the Strait of Hormuzzle, where about a fifth of its oil sails past every day. Shipping insurers have stopped answering the phone.',
+    driver: 'fear for the world’s oil supply',
     real: 'The October 2023 Middle East conflict, September 2023 to March 2024',
+    timeline: [
+      ['Oct 7, 2023', 'Hamas attacks Israel, and war follows in Gaza. Oil jumps on fears it will spread.'],
+      ['Oct 27, 2023', 'The S&P 500 hits its low for the period, about 10% below its summer high.'],
+      ['Nov 19, 2023', 'Houthi forces seize a cargo ship; attacks on Red Sea shipping begin.'],
+      ['Dec 18, 2023', 'Major shipping lines avoid the Red Sea and the Suez Canal.'],
+      ['Jan 12, 2024', 'The US and UK strike Houthi targets. Stocks keep climbing to record highs.'],
+    ],
   },
 ];
 
@@ -212,6 +281,8 @@ interface WarEvent {
   lights: Lights;
   cut?: string;
   major: boolean;
+  /** The biggest few major stories become timed desk calls. */
+  call: boolean;
   /** The bar on which you read it; its dot fades soon after. */
   seenAt?: number;
 }
@@ -307,6 +378,14 @@ export class WarRoom {
   private popEvent: WarEvent | null = null;
   private drag: { x: number; y: number; cam: Cam; moved: boolean } | null = null;
   private dragged = false;
+  private thesis: ThesisId = 'gut';
+  private fills: Fill[] = [];
+  private calls: DeskCall[] = [];
+  private callTimer = 0;
+  /** Holdings and prices at the last close, for scoring rotation. */
+  private hold: { qty: Record<string, number>; px: Snap } = { qty: {}, px: {} };
+  private stats = { hitW: 0, totW: 0, grossSum: 0, closes: 0 };
+  private lesson: WarLesson | null = null;
 
   constructor() {
     this.chart = new ChartView($('#war-chart-main'), $('#war-chart-macd'));
@@ -314,6 +393,7 @@ export class WarRoom {
     $('#war-map').addEventListener('mousemove', (e) => this.hover(e));
     $('#war-map').addEventListener('mouseleave', () => ($('#war-tip').hidden = true));
     this.wireCamera();
+    this.renderThesis();
     $('#war-plays').innerHTML = PLAYBOOKS.map((p) => `<button class="btn small play" data-war="play-book" data-v="${p.id}" title="${p.hint}">${p.name}</button>`).join('');
   }
 
@@ -377,6 +457,13 @@ export class WarRoom {
     this.revealed = [];
     this.port = new Portfolio();
     this.race = { you: [0], world: [0] };
+    this.fills = [];
+    this.calls = [];
+    this.hold = { qty: {}, px: {} };
+    this.stats = { hitW: 0, totW: 0, grossSum: 0, closes: 0 };
+    this.thesis = 'gut';
+    this.renderThesis();
+    this.lesson = recommendWar(loadWarProfile());
     this.cur = PRE - 1;
     this.tension = 25;
     this.cam = { ...HOME };
@@ -449,6 +536,7 @@ export class WarRoom {
         lights: c.rule.lights(this.crisis, where),
         cut: c.rule.cut,
         major: c.z >= 1.5,
+        call: c.z >= 1.5 && out.filter((x) => x.call).length < MAX_CALLS,
       });
     }
     return out.sort((a, b) => a.idx - b.idx);
@@ -483,6 +571,8 @@ export class WarRoom {
     if (i >= PRE) {
       this.race.you.push((this.port.equity((id) => this.price(id)) / START_CASH - 1) * 100);
       this.race.world.push((world[i].c / world[PRE - 1].c - 1) * 100);
+      this.track(i);
+      this.checkDue(i);
     }
     this.renderMap();
     this.renderHead();
@@ -501,7 +591,7 @@ export class WarRoom {
     this.renderLog();
     if (e.major && this.phase === 'playing') {
       this.pause();
-      this.focus(e);
+      this.focus(e, e.call);
     }
   }
 
@@ -525,18 +615,29 @@ export class WarRoom {
     const dq = Math.trunc(dollars / px);
     const after = this.port.gross((x) => this.price(x)) - Math.abs((this.port.qty[id] ?? 0) * px) + Math.abs(((this.port.qty[id] ?? 0) + dq) * px);
     if (after > MAX_GROSS * this.port.equity((x) => this.price(x))) return this.flash(`Limit reached: total positions can't exceed ${MAX_GROSS}× your equity.`);
-    this.port.trade(id, dq, px);
+    this.exec(id as InstId, dq, this.thesis);
     this.renderBasket(true);
   }
 
+  /** Every fill goes through here so it can be checked later. */
+  private exec(inst: InstId, dq: number, thesis: ThesisId | null, derisk = false) {
+    if (!dq) return;
+    const q = this.port.qty[inst] ?? 0;
+    const px = this.price(inst);
+    const opening = Math.abs(q + dq) > Math.abs(q) && Math.sign(q + dq) === Math.sign(dq);
+    const snap = Object.fromEntries(this.insts.map((x) => [x.id, x.partial.c]));
+    this.fills.push({ idx: this.cur, inst, dq, px, opening, derisk: derisk || (inst === 'world' && dq < 0), thesis: opening ? thesis : null, snap });
+    this.port.trade(inst, dq, px);
+  }
+
   /** Runs every leg of a playbook at the chosen size, or none of them if it would break the exposure limit. */
-  private playbook(id: string) {
+  private playbook(id: string): boolean | void {
     const book = PLAYBOOKS.find((p) => p.id === id)!;
     if (!this.canTrade()) return this.flash('Trading opens when the crisis starts.');
     if (!book.legs.length) {
       const open = Object.keys(this.port.qty).filter((k) => this.port.qty[k]);
       if (!open.length) return this.flash('You are already all in cash.');
-      for (const k of open) this.port.trade(k, -this.port.qty[k], this.price(k));
+      for (const k of open) this.exec(k as InstId, -this.port.qty[k], null, true);
       this.renderBasket(true);
       return this.flash('Go to cash: every position closed.', 'ok');
     }
@@ -546,10 +647,11 @@ export class WarRoom {
     for (const [inst, q] of dq) qty[inst] = (qty[inst] ?? 0) + q;
     const gross = Object.entries(qty).reduce((s, [k, q]) => s + Math.abs(q * px(k)), 0);
     if (gross > MAX_GROSS * this.port.equity(px)) return this.flash(`Limit reached: total positions can't exceed ${MAX_GROSS}× your equity.`);
-    for (const [inst, q] of dq) this.port.trade(inst, q, px(inst));
+    for (const [inst, q] of dq) this.exec(inst, q, BOOK_THESIS[book.id]);
     this.renderBasket(true);
     const verb = (d: number) => (d > 0 ? 'bought' : 'sold');
     this.flash(`${book.name}: ${book.legs.map(([inst, d]) => `${verb(d)} ${this.inst(inst).name}`).join(', ')}.`, 'ok');
+    return true;
   }
 
   private brief() {
@@ -587,7 +689,7 @@ export class WarRoom {
   private closePos(id: string) {
     const q = this.port.qty[id] ?? 0;
     if (q && this.canTrade()) {
-      this.port.trade(id, -q, this.price(id));
+      this.exec(id as InstId, -q, null);
       this.renderBasket(true);
     }
   }
@@ -684,6 +786,13 @@ export class WarRoom {
         break;
       case 'play-book':
         this.playbook(v);
+        break;
+      case 'thesis':
+        this.thesis = v as ThesisId;
+        this.renderThesis();
+        break;
+      case 'call':
+        this.makeCall(v);
         break;
       case 'brief':
         this.pause();
@@ -831,13 +940,14 @@ export class WarRoom {
   }
 
   /** Flies the camera in to a story, then opens it. Reading it starts its dot's countdown. */
-  private focus(e: WarEvent) {
+  private focus(e: WarEvent, call = false) {
     e.seenAt ??= this.cur;
     this.returnCam ??= { ...this.cam };
-    this.flyTo({ x: e.at[0], y: e.at[1], k: Math.max(this.cam.k, NEWS_ZOOM) }).then(() => this.openPop(e));
+    this.flyTo({ x: e.at[0], y: e.at[1], k: Math.max(this.cam.k, NEWS_ZOOM) }).then(() => this.openPop(e, call));
   }
 
   private closePop() {
+    if (this.callTimer && this.popEvent) this.makeCall('none');
     $('#war-pop').hidden = true;
     this.popEvent = null;
     if (this.returnCam) {
@@ -846,14 +956,17 @@ export class WarRoom {
     }
   }
 
-  private openPop(e: WarEvent) {
+  private openPop(e: WarEvent, call = false) {
     const pop = $('#war-pop');
     pop.className = `war-pop ${e.tone}`;
+    const made = this.calls.find((c) => c.eventId === e.id);
+    if (call && !made) return this.openCall(e);
     pop.innerHTML = `
       <div class="kicker">${this.labels[e.idx]} · ${e.place}</div>
       <div class="headline">${e.headline}</div>
       <p>${e.detail}</p>
       <p class="watch">Desks are watching: <b>${e.watch}</b></p>
+      ${made ? `<p class="call-made">Your call: <b>${this.callName(made.choice)}</b>${made.grade ? ` · graded <span class="grade ${made.grade}">${made.grade}</span>` : ' · graded in a few days'}</p>` : ''}
       <div class="pop-actions">
         <button class="btn ghost small" data-war="dismiss">Close</button>
         ${this.phase === 'paused' ? '<button class="btn primary small" data-war="resume">Resume</button>' : ''}
@@ -986,51 +1099,318 @@ export class WarRoom {
     });
   }
 
+  // ---------- Learning: theses, desk calls, scoring ----------
+
+  private renderThesis() {
+    $('#war-thesis').innerHTML = THESES.map(
+      (t) => `<button class="chip ${t.id === this.thesis ? 'on' : ''}" data-war="thesis" data-v="${t.id}" title="${t.blurb}">${t.name}</button>`,
+    ).join('');
+  }
+
+  /** % move of a market from a snapshot to the close of bar j. */
+  private fwd(id: string, snap: Snap, j: number) {
+    return (this.inst(id).bars[j].c / snap[id] - 1) * 100;
+  }
+
+  private checkFill(f: Fill, j: number) {
+    const t = THESES.find((x) => x.id === f.thesis);
+    if (!t?.check || f.verdict) return;
+    const d = Math.sign(f.dq);
+    const w = this.fwd('world', f.snap, j);
+    const rel = f.inst === 'world' ? d * w : d * (this.fwd(f.inst, f.snap, j) - w);
+    const b = (id: string, k: number) => this.inst(id).bars[Math.max(0, k)].c;
+    const move3 = (id: string) => b(id, f.idx - 1) / b(id, f.idx - 4) - 1;
+    const prior = d * (f.inst === 'world' ? move3('world') : move3(f.inst) - move3('world')) * 100;
+    const spread = this.fwd('energy', f.snap, j) - this.fwd('airlines', f.snap, j);
+    const [right, why] = t.check({ rel, world: w, spread, prior });
+    f.verdict = { right, why, pnl: f.dq * (this.inst(f.inst).bars[j].c - f.px) };
+  }
+
+  /** What each desk-call option would have made, in %: playbooks average their legs; holding makes nothing. */
+  private gradeDesk(c: DeskCall, j: number) {
+    if (c.grade) return;
+    const outcomes: Record<string, number> = { hold: 0 };
+    for (const book of PLAYBOOKS) if (book.legs.length) outcomes[book.id] = book.legs.reduce((s, [id, d]) => s + d * this.fwd(id, c.snap, j), 0) / book.legs.length;
+    c.outcomes = outcomes;
+    c.grade = gradeCall(c.choice, outcomes);
+  }
+
+  /** Checks theses and calls whose waiting period ends today, and says how they did. */
+  private checkDue(i: number) {
+    const notes: string[] = [];
+    for (const f of this.fills) {
+      if (f.thesis && f.thesis !== 'gut' && !f.verdict && f.idx + CHECK_DAYS === i) {
+        this.checkFill(f, i);
+        notes.push(`${thesisName(f.thesis)} on ${this.inst(f.inst).name} ${f.verdict!.right ? 'held up' : "didn't hold"}.`);
+      }
+    }
+    for (const c of this.calls) {
+      if (!c.grade && c.idx + CHECK_DAYS === i) {
+        this.gradeDesk(c, i);
+        notes.push(`Desk call (${this.callName(c.choice)}) graded ${c.grade}.`);
+      }
+    }
+    if (notes.length) this.flash(`Check-in: ${notes.slice(0, 2).join(' ')}`, 'ok');
+  }
+
+  /** Daily bookkeeping for the Rotation and Hedging skills. */
+  private track(i: number) {
+    const world = this.inst('world').bars;
+    const wm = world[i].c / world[i - 1].c - 1;
+    for (const [id, q] of Object.entries(this.hold.qty)) {
+      if (!q) continue;
+      const bars = this.inst(id).bars;
+      const m = bars[i].c / bars[i - 1].c - 1;
+      const rel = id === 'world' ? m : m - wm;
+      const w = Math.abs(q * this.hold.px[id]);
+      this.stats.totW += w;
+      if (Math.sign(q) * rel > 0) this.stats.hitW += w;
+    }
+    const px = (id: string) => this.inst(id).bars[i].c;
+    this.stats.grossSum += this.port.gross(px) / this.port.equity(px);
+    this.stats.closes++;
+    this.hold = { qty: { ...this.port.qty }, px: Object.fromEntries(this.insts.map((x) => [x.id, x.bars[i].c])) };
+  }
+
+  private callName(choice: string) {
+    return choice === 'hold' ? 'Hold' : choice === 'none' ? 'No call' : PLAYBOOKS.find((p) => p.id === choice)!.name;
+  }
+
+  /** A desk call: the clock is stopped, the desk wants a decision in ten seconds. */
+  private openCall(e: WarEvent) {
+    const pop = $('#war-pop');
+    pop.classList.add('call');
+    pop.innerHTML = `
+      <div class="kicker">Desk call · ${this.labels[e.idx]} · ${e.place}</div>
+      <div class="headline">${e.headline}</div>
+      <p>${e.detail}</p>
+      <p class="watch">The desk needs your call. What do you do?</p>
+      <div class="call-opts">
+        ${PLAYBOOKS.filter((b) => b.legs.length).map((b) => `<button class="btn small" data-war="call" data-v="${b.id}" title="${b.hint}">${b.name}</button>`).join('')}
+        <button class="btn small ghost" data-war="call" data-v="hold" title="Do nothing and let the story develop">Hold</button>
+      </div>
+      <div class="call-clock"><span id="call-bar"></span></div>`;
+    pop.hidden = false;
+    this.popEvent = e;
+    this.placePop();
+    const t0 = performance.now();
+    window.clearInterval(this.callTimer);
+    this.callTimer = window.setInterval(() => {
+      const left = 1 - (performance.now() - t0) / (CALL_SECONDS * 1000);
+      const bar = document.getElementById('call-bar');
+      if (bar) bar.style.width = `${Math.max(0, left) * 100}%`;
+      if (left <= 0) this.makeCall('none');
+    }, 100);
+  }
+
+  private makeCall(choice: string) {
+    window.clearInterval(this.callTimer);
+    this.callTimer = 0;
+    const e = this.popEvent;
+    if (!e || this.calls.some((c) => c.eventId === e.id)) return;
+    const snap = Object.fromEntries(this.insts.map((x) => [x.id, x.partial.c]));
+    this.calls.push({ eventId: e.id, idx: this.cur, choice, snap });
+    if (choice !== 'hold' && choice !== 'none') this.playbook(choice);
+    else if (choice === 'none') this.flash("Time's up: no call made. It counts as holding, but hesitation scores lower.");
+    if (!$('#war-pop').hidden) this.openPop(e);
+  }
+
+  /** Everything the skills and the after-action review need, measured at the end of the crisis. */
+  private facts() {
+    const last = this.inst('world').bars.length - 1;
+    for (const f of this.fills) if (f.thesis && f.thesis !== 'gut' && !f.verdict && f.idx < last) this.checkFill(f, Math.min(last, f.idx + CHECK_DAYS));
+    for (const c of this.calls) if (!c.grade && c.idx < last) this.gradeDesk(c, Math.min(last, c.idx + CHECK_DAYS));
+    const world = this.inst('world').bars;
+    const w = world.slice(PRE - 1).map((b) => b.c);
+    let peak = w[0];
+    let ddWorld = 0;
+    for (const c of w) {
+      peak = Math.max(peak, c);
+      ddWorld = Math.max(ddWorld, (peak - c) / peak);
+    }
+    // Panic sells: de-risking at a 10-day low, right before a rebound of 3% or more.
+    const panicDays = new Set<number>();
+    for (const f of this.fills) {
+      if (!f.derisk) continue;
+      const i = f.idx;
+      const low = Math.min(...world.slice(Math.max(0, i - 9), i + 1).map((b) => b.c));
+      const after = world.slice(i + 1, i + 11).map((b) => b.c);
+      if (after.length && world[i].c <= low * 1.005 && Math.max(...after) / world[i].c - 1 > 0.03) panicDays.add(i);
+    }
+    const checked = this.fills.filter((f) => f.verdict);
+    const graded = this.calls.filter((c) => c.grade);
+    const eq = this.port.equity((id) => this.price(id));
+    const facts: WarFacts = {
+      ret: (eq / START_CASH - 1) * 100,
+      world: (world[last].c / world[PRE - 1].c - 1) * 100,
+      trades: this.port.trades,
+      ddYou: this.port.maxDrawdown,
+      ddWorld,
+      avgGross: this.stats.closes ? this.stats.grossSum / this.stats.closes : 0,
+      hit: this.stats.totW ? this.stats.hitW / this.stats.totW : null,
+      callPoints: graded.map((c) => CALL_POINTS[c.grade!]),
+      goodCalls: graded.filter((c) => c.grade === 'good').length,
+      panicSells: panicDays.size,
+      thesesRight: checked.filter((f) => f.verdict!.right).length,
+      thesesChecked: checked.length,
+    };
+    return { facts, checked, graded, panicDays };
+  }
+
   private sitrep() {
     const c = this.crisis;
+    const l = this.lesson;
     return `
       <div class="kicker">Situation report</div>
       <h3 class="op">${c.op}</h3>
       <p>${c.story}</p>
-      <p class="muted">You manage $100,000 across six markets. Buy what you think will win, short what you think will lose, and move money as the news breaks. Each click trades your chosen amount. Positions can total up to ${MAX_GROSS}× your equity.</p>
+      <p class="muted">You manage $100,000 across six markets. Buy what you think will win, short what you think will lose, and move money as the news breaks. Pick a thesis before you trade: it gets checked against what happens next. Positions can total up to ${MAX_GROSS}× your equity.</p>
+      ${l ? `<p class="sitrep-obj"><b>Your objective:</b> ${l.objective.text} <span class="muted">From the lesson “${l.title}”.</span></p>` : ''}
       <ul class="sitrep-list">${BASKET.map((b) => `<li><b>${b.name}</b>: ${b.blurb}</li>`).join('')}</ul>
       <button class="btn primary" data-war="play">Begin</button>`;
   }
 
-  private debrief() {
-    const px = (id: string) => this.price(id);
-    const eq = this.port.equity(px);
-    const ret = (eq / START_CASH - 1) * 100;
-    const rows = this.insts.map((i) => ({ i, chg: (i.bars[i.bars.length - 1].c / i.bars[PRE - 1].c - 1) * 100, pnl: this.port.pnl(i.id, i.partial.c) }));
-    const world = rows[0].chg;
+  /** The guided after-action summary: what happened, how you played it, and what to take away. */
+  private summary(f: WarFacts, panicRet: number, checked: Fill[], scores: WarScores) {
+    const c = this.crisis;
+    const rows = this.insts.map((i) => ({ i, chg: (i.bars[i.bars.length - 1].c / i.bars[PRE - 1].c - 1) * 100 }));
     const best = [...rows].sort((a, b) => b.chg - a.chg)[0];
     const worst = [...rows].sort((a, b) => a.chg - b.chg)[0];
+    const world = this.inst('world').bars;
+    let lowI = PRE;
+    for (let i = PRE; i < world.length; i++) if (world[i].c < world[lowI].c) lowI = i;
+    const lowPct = (world[lowI].c / world[PRE - 1].c - 1) * 100;
+    const near = [...this.events].filter((e) => Math.abs(e.idx - lowI) <= 3).sort((a, b) => Math.abs(a.idx - lowI) - Math.abs(b.idx - lowI))[0];
+    const from = (world[world.length - 1].c / world[lowI].c - 1) * 100;
+    const happened = `${c.op} was ${c.driver}. <b>${best.i.name}</b> led the basket (${pct(best.chg)}) while <b>${worst.i.name}</b> fared worst (${pct(worst.chg)}). ${
+      lowPct < -1
+        ? `The World Index bottomed on ${this.labels[lowI].replace(/^Day \d+ · /, '')} at ${pct(lowPct)}${near ? `, ${near.idx <= lowI ? 'just after' : 'just before'} “${near.headline}”` : ''}, and ${from > 1 ? `rebounded ${from.toFixed(1)}% from there` : 'never really recovered'}.`
+        : 'The World Index never fell far, which made safe havens a costly insurance policy.'
+    }`;
+
+    const excess = f.ret - f.world;
+    const bestFill = [...checked].sort((a, b) => b.verdict!.pnl - a.verdict!.pnl)[0];
+    const worstFill = [...checked].sort((a, b) => a.verdict!.pnl - b.verdict!.pnl)[0];
+    const fillText = (x: Fill) => `${x.dq > 0 ? 'buying' : 'shorting'} ${this.inst(x.inst).name} on ${this.labels[x.idx].split(' · ')[0]} as a ${thesisName(x.thesis!).toLowerCase()} (${money(x.verdict!.pnl)} in ${CHECK_DAYS} days)`;
+    const played = f.trades === 0
+      ? 'You sat this one out. Cash never loses, but it never learns either.'
+      : `You ${excess >= 0 ? 'beat' : 'trailed'} the World Index by <b>${Math.abs(excess).toFixed(1)} points</b>${f.ret < 0 && excess > 0 ? ', and that counts as a good job even though you lost money' : f.ret > 0 && excess < 0 ? '. You made money, but less than just holding the market' : ''}. ${
+          f.thesesChecked ? `${f.thesesRight} of ${f.thesesChecked} theses held up. ` : 'You did not tag any trades with a thesis, so none could be checked. '
+        }${bestFill && bestFill.verdict!.pnl > 0 ? `Your best decision was ${fillText(bestFill)}. ` : ''}${worstFill && worstFill !== bestFill && worstFill.verdict!.pnl < 0 ? `Your worst was ${fillText(worstFill)}.` : ''}`;
+
+    const gap = f.world - panicRet;
+    const panic = Math.abs(gap) < 0.5
+      ? 'Holding the World Index and selling after the first big drop ended up in the same place this time.'
+      : gap > 0
+        ? `Someone who sold everything after the first big drop finished at ${pct(panicRet)}, ${gap.toFixed(1)} points behind someone who simply held. Fear peaks before the facts.`
+        : `This time, selling after the first drop (${pct(panicRet)}) beat holding (${pct(f.world)}). That is the exception, not the rule, and it only shows up in hindsight.`;
+
+    const rated = WAR_SKILLS.filter((s) => scores[s.id] !== null).sort((a, b) => scores[a.id]! - scores[b.id]!);
+    const weak = rated[0];
+    const lesson = recommendWar(loadWarProfile());
+    const takeaway = weak && lesson ? `Your weakest skill this round was <b>${weak.name}</b> (${scores[weak.id]}). Next time, read “${lesson.title}”: ${lesson.body[0]}` : 'Make a few trades with a thesis next time so the desk can tell you what worked.';
+    return { happened, played, panic, takeaway };
+  }
+
+  private debrief() {
+    const { facts: f, checked, graded } = this.facts();
+    const scores = scoreWar(f);
+    const objective = this.lesson ? { id: this.lesson.id, passed: this.lesson.objective.check(f) } : null;
+    const profile = loadWarProfile();
+    recordWarRound(profile, { at: new Date().toISOString(), crisis: this.crisis.op, ret: f.ret, world: f.world, trades: f.trades, scores }, objective);
+
+    // The panic seller holds the World Index until it is 6% down, then sits in cash.
+    const panicSeries: number[] = [];
+    let out: number | null = null;
+    for (const w of this.race.world) {
+      if (out === null && w <= -6) out = w;
+      panicSeries.push(out ?? w);
+    }
+    const panicRet = panicSeries[panicSeries.length - 1];
+    const s = this.summary(f, panicRet, checked, scores);
+    const lines: [string, number[]][] = [['you', this.race.you], ['world', this.race.world], ['panic', panicSeries]];
+    const all = lines.flatMap(([, xs]) => xs);
+    const lo = Math.min(...all, -1);
+    const hi = Math.max(...all, 1);
+    const W = 560;
+    const H = 150;
+    const x = (i: number) => (i / PLAY) * W;
+    const y = (v: number) => 6 + ((hi - v) / (hi - lo)) * (H - 12);
+    const pts = (xs: number[]) => xs.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const marks = graded.map((c) => `<circle class="call-mark ${c.grade}" cx="${x(c.idx - PRE + 1)}" cy="${y(this.race.you[Math.min(this.race.you.length - 1, c.idx - PRE + 1)])}" r="4"><title>Desk call: ${this.callName(c.choice)} (${c.grade})</title></circle>`).join('');
+
     return `
-      <h2 id="debrief-title" style="margin:0">The dust settles</h2>
+      <h2 id="debrief-title" style="margin:0">After-action review</h2>
+      <p class="muted" style="margin:0.2rem 0 0.6rem">${this.crisis.op}</p>
+      <div class="stat-row num">
+        <div class="stat"><div class="lbl">You</div><div class="val ${tone(f.ret)}">${pct(f.ret, 1)}</div></div>
+        <div class="stat"><div class="lbl">Just hold the World Index</div><div class="val ${tone(f.world)}">${pct(f.world, 1)}</div></div>
+        <div class="stat"><div class="lbl">Panic seller</div><div class="val ${tone(panicRet)}">${pct(panicRet, 1)}</div></div>
+        <div class="stat"><div class="lbl">Versus the index</div><div class="val ${tone(f.ret - f.world)}">${f.ret - f.world >= 0 ? '+' : ''}${(f.ret - f.world).toFixed(1)} pts</div></div>
+      </div>
+      <svg class="aar-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="You, the World Index and the panic seller over the crisis">
+        <line class="zero" x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
+        <polyline class="panic-line" points="${pts(panicSeries)}"/>
+        <polyline class="world-line" points="${pts(this.race.world)}"/>
+        <polyline class="you-line" points="${pts(this.race.you)}"/>
+        ${marks}
+      </svg>
+      <div class="aar-key"><span class="you">You</span><span class="wld">World Index</span><span class="pnc">Panic seller</span><span class="muted">Dots: desk calls</span></div>
+
+      <div class="aar-summary">
+        <h3>What happened</h3><p>${s.happened}</p>
+        <h3>How you played it</h3><p>${s.played}</p>
+        <h3>Holding vs panicking</h3><p>${s.panic}</p>
+        <h3>Take this with you</h3><p>${s.takeaway}</p>
+      </div>
+
+      <div class="aar-grid">
+        <div>
+          <h3>War Room skills</h3>
+          ${WAR_SKILLS.map((k) => `<div class="skill-row"><span title="${k.blurb}">${k.name}</span><div class="meter">${scores[k.id] !== null ? `<span style="width:${scores[k.id]}%"></span>` : ''}</div><span class="num">${scores[k.id] ?? '<span class="muted">n/a</span>'}</span></div>`).join('')}
+          ${objective && this.lesson ? `<p class="objective-result ${objective.passed ? 'up' : 'down'}">${objective.passed ? '✓ Objective met' : '✗ Objective missed'}: ${this.lesson.objective.text}</p>` : ''}
+        </div>
+        <div>
+          <h3>Theses and desk calls</h3>
+          ${
+            checked.length || graded.length
+              ? `<ul class="aar-list">${checked.map((x) => `<li class="${x.verdict!.right ? 'up' : 'down'}"><b>${x.verdict!.right ? '✓' : '✗'} ${thesisName(x.thesis!)}</b> · ${x.dq > 0 ? 'long' : 'short'} ${this.inst(x.inst).name}, ${this.labels[x.idx].split(' · ')[0]}<br><span class="muted">${x.verdict!.why}</span></li>`).join('')}
+                ${graded.map((c) => `<li><b>Desk call: ${this.callName(c.choice)}</b> · <span class="grade ${c.grade}">${c.grade}</span><br><span class="muted">Best option was ${this.callName(Object.entries(c.outcomes!).sort((a, b) => b[1] - a[1])[0][0])} (${pct(Math.max(...Object.values(c.outcomes!)), 1)}).</span></li>`).join('')}</ul>`
+              : '<p class="muted">No tagged trades or desk calls this time.</p>'
+          }
+        </div>
+      </div>
+
+      <h3>What really happened</h3>
       <div class="reveal">
-        <div class="muted">${this.crisis.op} was really</div>
-        <div class="was" style="font-size:1.2rem">${this.crisis.real}</div>
+        <div class="was" style="font-size:1.1rem">${this.crisis.real}</div>
+        <ul class="aar-timeline">${this.crisis.timeline.map(([d, t]) => `<li><b>${d}</b> ${t}</li>`).join('')}</ul>
         <div class="muted">${BASKET.map((b) => `${b.name} = ${b.sym}`).join(' · ')}</div>
       </div>
-      <div class="stat-row num">
-        <div class="stat"><div class="lbl">Your return</div><div class="val ${tone(ret)}">${pct(ret, 2)}</div></div>
-        <div class="stat"><div class="lbl">World Index</div><div class="val ${tone(world)}">${pct(world, 2)}</div></div>
-        <div class="stat"><div class="lbl">Max drawdown</div><div class="val">${pct(-this.port.maxDrawdown * 100, 2)}</div></div>
-        <div class="stat"><div class="lbl">Trades</div><div class="val">${this.port.trades}</div></div>
-      </div>
-      <h3>How each market did</h3>
-      <table class="plain num"><thead><tr><th>Market</th><th class="r">Move</th><th class="r">Your P&amp;L</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr><td>${r.i.name}</td><td class="r ${tone(r.chg)}">${pct(r.chg)}</td><td class="r ${tone(r.pnl)}">${r.pnl ? money(r.pnl) : '—'}</td></tr>`).join('')}
-      </tbody></table>
-      <p>The winning rotation was <b>long ${best.i.name}</b> (${pct(best.chg)})${worst.chg < 0 ? ` and <b>short ${worst.i.name}</b> (${pct(worst.chg)})` : ''}. In a crisis, the money doesn't disappear. It moves.</p>
-      <p class="hint">War Room rounds don't affect your skill ratings yet.</p>
+
+      <label class="aar-note"><span>What would you do differently?</span>
+        <textarea id="war-note" rows="2" placeholder="Next time I would…"></textarea></label>
       <div class="modal-actions">
-        <button class="btn ghost" data-act="review">Review</button>
+        <button class="btn ghost" data-act="review">Close</button>
         <button class="btn primary" data-war-new>New crisis</button>
       </div>`;
   }
 
+  /** Saves the reflection note onto the round just recorded. */
+  saveNote() {
+    const el = document.getElementById('war-note') as HTMLTextAreaElement | null;
+    const text = el?.value.trim();
+    if (!text) return;
+    const p = loadWarProfile();
+    const last = p.rounds[p.rounds.length - 1];
+    if (last) {
+      last.note = text;
+      saveWarProfile(p);
+    }
+  }
+
   newFromDebrief() {
+    this.saveNote();
     $('#debrief').hidden = true;
     this.newCrisis();
   }

@@ -13,6 +13,7 @@ import { Replay } from './replay';
 import { scoreRound } from './skills';
 import { TUTORIAL_CHART, TUTORIAL_NEWS_BAR, Tutorial, tutorialResult } from './tutorial';
 import { WarRoom } from './war';
+import { loadWarProfile, resetWarProfile } from './warlearn';
 import type { Bar, Mode, Raw, Scenario } from './types';
 import * as ui from './ui';
 
@@ -676,7 +677,7 @@ function renderLevelBadge() {
 }
 
 function renderLessons() {
-  $('#view-lessons').innerHTML = ui.lessonsView(state.profile, recommend(state.profile));
+  $('#view-lessons').innerHTML = ui.lessonsView(state.profile, recommend(state.profile)) + ui.warLessonsView(loadWarProfile());
 }
 
 let todayLoaded = false;
@@ -874,6 +875,7 @@ document.addEventListener('click', (e) => {
       decide(v as Choice);
       break;
     case 'review':
+      war.saveNote();
       $('#debrief').hidden = true;
       break;
     case 'new':
@@ -890,8 +892,9 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'reset-progress':
-      if (confirm('Reset all rounds, ratings and lesson history?')) {
+      if (confirm('Reset all rounds, ratings and lesson history, including the War Room?')) {
         resetProfile(true);
+        resetWarProfile();
         state.profile = loadProfile();
         renderLessons();
         renderLevelBadge();
@@ -945,7 +948,10 @@ document.addEventListener('keydown', (e) => {
   else if (k === 't') setTool('trend');
   else if (k === 'h') setTool('swing');
   else if (k === 'escape') {
-    if (!$('#debrief').hidden && !tutorial.active) $('#debrief').hidden = true;
+    if (!$('#debrief').hidden && !tutorial.active) {
+      war.saveNote();
+      $('#debrief').hidden = true;
+    }
     else if (state.tool) setTool(state.tool);
   } else if ('12345'.includes(k)) setSpeed([0.5, 1, 2, 4, 8][Number(k) - 1]);
 });

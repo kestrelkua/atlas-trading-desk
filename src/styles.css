@@ -1804,3 +1804,221 @@ table.plain th.r {
   flex-direction: column;
   justify-content: center;
 }
+.thesis-pick {
+  margin: 0.4rem 0 0.5rem;
+}
+.thesis-pick .chip {
+  font-size: 0.8rem;
+}
+.sitrep-obj {
+  border-left: 3px solid var(--wr-amber);
+  padding-left: 0.6rem;
+}
+.war-pop.call {
+  border-width: 2px;
+  width: min(360px, 92%);
+}
+.call-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0.5rem;
+}
+.war-pop .call-opts .btn {
+  color: #dcecef;
+  border-color: #3a5568;
+  background: rgba(30, 55, 72, 0.6);
+}
+.war-pop .call-opts .btn:hover {
+  border-color: var(--wr-amber);
+}
+.call-clock {
+  height: 4px;
+  border-radius: 2px;
+  background: #1d3a50;
+  overflow: hidden;
+}
+.call-clock span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--wr-amber);
+  transition: width 0.1s linear;
+}
+.call-made {
+  color: #cfe3e8;
+}
+.grade {
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.grade.good {
+  color: var(--up);
+}
+.grade.okay {
+  color: var(--gold);
+}
+.grade.poor {
+  color: var(--down);
+}
+.war-pop .grade.good {
+  color: var(--wr-green);
+}
+.war-pop .grade.okay {
+  color: var(--wr-amber);
+}
+.war-pop .grade.poor {
+  color: var(--wr-red);
+}
+.aar-chart {
+  display: block;
+  width: 100%;
+  height: 150px;
+  background: var(--paper-2);
+  border-radius: 6px;
+  margin-top: 0.6rem;
+}
+.aar-chart polyline,
+.aar-chart line {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.aar-chart .zero {
+  stroke: var(--rule);
+  stroke-dasharray: 2 3;
+}
+.aar-chart .you-line {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+.aar-chart .world-line {
+  stroke: var(--ink-3);
+  stroke-width: 1.6;
+}
+.aar-chart .panic-line {
+  stroke: var(--down);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+}
+.aar-chart .call-mark {
+  stroke: var(--paper);
+  stroke-width: 1.5;
+}
+.aar-chart .call-mark.good {
+  fill: var(--up);
+}
+.aar-chart .call-mark.okay {
+  fill: var(--gold);
+}
+.aar-chart .call-mark.poor {
+  fill: var(--down);
+}
+.aar-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0.4rem;
+}
+.aar-key span::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+  border-top: 2px solid;
+}
+.aar-key .you {
+  color: var(--accent);
+}
+.aar-key .wld {
+  color: var(--ink-3);
+}
+.aar-key .pnc {
+  color: var(--down);
+}
+.aar-key .pnc::before {
+  border-top-style: dashed;
+}
+.aar-key .muted::before {
+  display: none;
+}
+.aar-summary h3 {
+  margin: 0.8rem 0 0.2rem;
+  font-size: 1rem;
+}
+.aar-summary p {
+  margin: 0;
+}
+.aar-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.2rem;
+  margin-top: 0.6rem;
+}
+.aar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+.aar-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.aar-list li.up b {
+  color: var(--up);
+}
+.aar-list li.down b {
+  color: var(--down);
+}
+.objective-result {
+  font-weight: 600;
+}
+.aar-timeline {
+  margin: 0.4rem 0;
+  padding-left: 1.1rem;
+  text-align: left;
+}
+.aar-timeline li {
+  margin-bottom: 0.2rem;
+}
+.aar-note {
+  display: block;
+  margin-top: 0.8rem;
+}
+.aar-note span {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.aar-note textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.war-progress-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.2rem;
+}
+.war-progress h4 {
+  margin: 0.2rem 0 0.4rem;
+}
+.war-progress .note {
+  font-style: italic;
+  max-width: 320px;
+}
+@media (max-width: 720px) {
+  .aar-grid,
+  .war-progress-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

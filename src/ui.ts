@@ -7,6 +7,7 @@ import { REACTION_BARS, explainGrade, type NewsCall } from './news';
 import { LEVELS, level, skillTrend, type Profile, type Recommendation } from './profile';
 import { SKILLS, type SkillScores } from './skills';
 import type { Scenario } from './types';
+import { WAR_LESSONS, WAR_SKILLS, recommendWar, type WarProfile } from './warlearn';
 
 export const money = (x: number) =>
   (x < 0 ? '−$' : '$') + Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -413,6 +414,48 @@ export function lessonsView(p: Profile, rec: Recommendation | null) {
           : '<p class="muted">No rounds yet.</p>'
       }
       <p class="hint"><button class="btn small ghost" data-act="reset-progress">Reset progress</button></p>
+    </section>`;
+}
+
+/** The War Room's half of Lessons & Progress. */
+export function warLessonsView(p: WarProfile) {
+  const rec = recommendWar(p);
+  const rounds = p.rounds.slice(-6).reverse();
+  const objective = (id: string) => p.objectives[id];
+  return `
+    <section class="card full war-progress">
+      <h3>War Room</h3>
+      <div class="war-progress-grid">
+        <div>
+          <h4>Skills</h4>
+          ${WAR_SKILLS.map((k) => {
+            const r = p.ratings[k.id];
+            return `<div class="skill-row"><span title="${esc(k.blurb)}">${k.name}</span><div class="meter">${r !== null ? `<span style="width:${r}%"></span>` : ''}</div><span class="num">${r ?? '<span class="muted">n/a</span>'}</span></div>`;
+          }).join('')}
+          <p class="hint">Separate from your Simulator rank for now. Each crisis updates them as a moving average.</p>
+        </div>
+        <div>
+          <h4>Recommended now</h4>
+          ${
+            rec
+              ? `<div class="lesson-card"><div class="tier">${WAR_SKILLS.find((k) => k.id === rec.skill)!.name}</div><h4>${esc(rec.title)}</h4>${rec.body.map((b) => `<p>${esc(b)}</p>`).join('')}<p class="challenge"><b>Objective next crisis:</b> ${esc(rec.objective.text)}</p></div>`
+              : '<p class="muted">Finish a War Room crisis with at least one trade to get a lesson matched to your weakest War Room skill.</p>'
+          }
+        </div>
+      </div>
+      <div class="lesson-list">
+        ${WAR_LESSONS.map((l) => {
+          const o = objective(l.id);
+          return `<details><summary><span>${esc(l.title)}</span><span class="muted">${WAR_SKILLS.find((k) => k.id === l.skill)!.name}${o ? ` · objective ${o.passes}/${o.attempts}` : ''}${rec?.id === l.id ? ' · <span class="rec">recommended</span>' : ''}</span></summary>
+            ${l.body.map((b) => `<p>${esc(b)}</p>`).join('')}<p class="challenge"><b>Objective:</b> ${esc(l.objective.text)}</p></details>`;
+        }).join('')}
+      </div>
+      ${
+        rounds.length
+          ? `<h4>Recent crises</h4><table class="plain num"><thead><tr><th>When</th><th>Crisis</th><th class="r">You</th><th class="r">World Index</th><th>Your note</th></tr></thead><tbody>
+            ${rounds.map((r) => `<tr><td>${new Date(r.at).toLocaleDateString()}</td><td>${esc(r.crisis)}</td><td class="r ${tone(r.ret)}">${pct(r.ret, 1)}</td><td class="r ${tone(r.world)}">${pct(r.world, 1)}</td><td class="note">${r.note ? esc(r.note) : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table>`
+          : ''
+      }
     </section>`;
 }
 
