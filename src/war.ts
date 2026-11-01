@@ -35,6 +35,19 @@ const PLAYBOOKS: { id: string; name: string; legs: [InstId, 1 | -1][]; hint: str
   { id: 'cash', name: 'Go to cash', legs: [], hint: 'Close every position.' },
 ];
 const BRIEFED_KEY = 'atlas.warBriefed';
+/** How long dots stay on the map, in trading days. */
+const DOT_AFTER_READ = 3;
+const DOT_UNREAD = 20;
+const MAX_ZOOM = 6;
+const NEWS_ZOOM = 2.6;
+
+interface Cam {
+  x: number;
+  y: number;
+  k: number;
+}
+const HOME: Cam = { x: MAP.w / 2, y: MAP.h / 2, k: 1 };
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 interface Crisis {
   id: string;
@@ -199,6 +212,8 @@ interface WarEvent {
   lights: Lights;
   cut?: string;
   major: boolean;
+  /** The bar on which you read it; its dot fades soon after. */
+  seenAt?: number;
 }
 
 interface Inst {
@@ -285,12 +300,20 @@ export class WarRoom {
   private race: { you: number[]; world: number[] } = { you: [0], world: [0] };
   private briefing = new WarBriefing();
   private flashTimer = 0;
+  private cam: Cam = { ...HOME };
+  /** Where the camera goes back to after it flies in to a story. */
+  private returnCam: Cam | null = null;
+  private camAnim = 0;
+  private popEvent: WarEvent | null = null;
+  private drag: { x: number; y: number; cam: Cam; moved: boolean } | null = null;
+  private dragged = false;
 
   constructor() {
     this.chart = new ChartView($('#war-chart-main'), $('#war-chart-macd'));
     $('#view-war').addEventListener('click', (e) => this.onClick(e));
     $('#war-map').addEventListener('mousemove', (e) => this.hover(e));
     $('#war-map').addEventListener('mouseleave', () => ($('#war-tip').hidden = true));
+    this.wireCamera();
     $('#war-plays').innerHTML = PLAYBOOKS.map((p) => `<button class="btn small play" data-war="play-book" data-v="${p.id}" title="${p.hint}">${p.name}</button>`).join('');
   }
 
@@ -356,6 +379,8 @@ export class WarRoom {
     this.race = { you: [0], world: [0] };
     this.cur = PRE - 1;
     this.tension = 25;
+    this.cam = { ...HOME };
+    this.returnCam = null;
     this.replay = new Replay(world, PRE, {
       onBarOpen: (i) => this.onBarOpen(i),
       onTick: (i) => this.onTick(i),
@@ -476,7 +501,7 @@ export class WarRoom {
     this.renderLog();
     if (e.major && this.phase === 'playing') {
       this.pause();
-      this.openPop(e);
+      this.focus(e);
     }
   }
 
@@ -591,7 +616,7 @@ export class WarRoom {
     if (!this.replay) return;
     if (this.phase === 'done') return void this.newCrisis();
     if (this.phase === 'briefing' || this.phase === 'paused') {
-      $('#war-pop').hidden = true;
+      this.closePop();
       this.setPhase('playing');
       this.replay.play();
     } else if (this.phase === 'playing') this.pause();
@@ -612,9 +637,9 @@ export class WarRoom {
     const dot = t.closest<HTMLElement | SVGElement>('[data-dot]');
     if (dot) {
       const ev = this.revealed.find((x) => x.id === Number(dot.dataset.dot));
-      if (ev) {
+      if (ev && !this.dragged) {
         this.pause();
-        this.openPop(ev);
+        this.focus(ev);
       }
       return;
     }
@@ -649,8 +674,13 @@ export class WarRoom {
         this.closePos(v);
         break;
       case 'resume':
-        $('#war-pop').hidden = true;
         if (this.phase === 'paused') this.togglePlay();
+        else this.closePop();
+        break;
+      case 'zoom':
+        this.returnCam = null;
+        if (v === 'home') this.flyTo(HOME);
+        else this.flyTo({ ...this.cam, k: this.cam.k * (v === 'in' ? 1.6 : 1 / 1.6) }, 350);
         break;
       case 'play-book':
         this.playbook(v);
@@ -660,7 +690,7 @@ export class WarRoom {
         this.brief();
         break;
       case 'dismiss':
-        $('#war-pop').hidden = true;
+        this.closePop();
         break;
     }
   }
@@ -674,9 +704,17 @@ export class WarRoom {
   }
 
   private renderMap() {
-    const dots: MapDot[] = this.revealed.map((e) => ({ id: e.id, at: e.at, tone: e.tone, fresh: e.idx > this.cur - 3 }));
+    const dots: MapDot[] = this.revealed
+      .filter((e) => (e.seenAt !== undefined ? this.cur - e.seenAt <= DOT_AFTER_READ : this.cur - e.idx <= DOT_UNREAD))
+      .map((e) => ({
+        id: e.id,
+        at: e.at,
+        tone: e.tone,
+        state: e.seenAt !== undefined ? (this.cur - e.seenAt >= DOT_AFTER_READ ? 'leaving' : '') : this.cur - e.idx < 3 ? 'fresh' : this.cur - e.idx > DOT_UNREAD / 2 ? 'old' : '',
+      }));
     const cuts = new Set(this.revealed.filter((e) => e.cut && e.idx > this.cur - 10).map((e) => e.cut!));
     $('#war-map').innerHTML = renderMap({ lit: this.lights(), dots, cuts, tension: this.tension });
+    this.applyCamera();
   }
 
   private renderHead() {
@@ -792,6 +830,22 @@ export class WarRoom {
       : '<li class="muted">Dispatches appear here and on the map as the crisis unfolds. Click any dot or dispatch for details.</li>';
   }
 
+  /** Flies the camera in to a story, then opens it. Reading it starts its dot's countdown. */
+  private focus(e: WarEvent) {
+    e.seenAt ??= this.cur;
+    this.returnCam ??= { ...this.cam };
+    this.flyTo({ x: e.at[0], y: e.at[1], k: Math.max(this.cam.k, NEWS_ZOOM) }).then(() => this.openPop(e));
+  }
+
+  private closePop() {
+    $('#war-pop').hidden = true;
+    this.popEvent = null;
+    if (this.returnCam) {
+      this.flyTo(this.returnCam);
+      this.returnCam = null;
+    }
+  }
+
   private openPop(e: WarEvent) {
     const pop = $('#war-pop');
     pop.className = `war-pop ${e.tone}`;
@@ -804,14 +858,132 @@ export class WarRoom {
         <button class="btn ghost small" data-war="dismiss">Close</button>
         ${this.phase === 'paused' ? '<button class="btn primary small" data-war="resume">Resume</button>' : ''}
       </div>`;
-    const svg = $('#war-map svg');
-    const r = svg.getBoundingClientRect();
-    const host = $('.map-card').getBoundingClientRect();
-    const x = r.left - host.left + (e.at[0] / MAP.w) * r.width;
-    const y = r.top - host.top + (e.at[1] / MAP.h) * r.height;
     pop.hidden = false;
+    this.popEvent = e;
+    this.placePop();
+  }
+
+  private placePop() {
+    const e = this.popEvent;
+    const svg = document.querySelector('#war-map svg');
+    if (!e || !svg) return;
+    const pop = $('#war-pop');
+    const host = $('.map-card').getBoundingClientRect();
+    const [sx, sy] = this.toScreen(e.at);
+    const x = sx - host.left;
+    const y = sy - host.top;
     pop.style.left = `${Math.min(Math.max(8, x - pop.offsetWidth / 2), host.width - pop.offsetWidth - 8)}px`;
     pop.style.top = `${y + 18 + pop.offsetHeight > host.height ? Math.max(8, y - pop.offsetHeight - 14) : y + 18}px`;
+  }
+
+  // ---------- Camera ----------
+
+  private view(c = this.cam) {
+    const w = MAP.w / c.k;
+    const h = MAP.h / c.k;
+    return { x: c.x - w / 2, y: c.y - h / 2, w, h };
+  }
+
+  private clamp(c: Cam): Cam {
+    const k = Math.min(MAX_ZOOM, Math.max(1, c.k));
+    const hw = MAP.w / (2 * k);
+    const hh = MAP.h / (2 * k);
+    return { k, x: Math.min(MAP.w - hw, Math.max(hw, c.x)), y: Math.min(MAP.h - hh, Math.max(hh, c.y)) };
+  }
+
+  private applyCamera() {
+    const svg = document.querySelector<SVGSVGElement>('#war-map svg');
+    if (!svg) return;
+    const v = this.view();
+    svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+    svg.style.setProperty('--zs', String(Math.sqrt(this.cam.k)));
+    if (this.popEvent) this.placePop();
+  }
+
+  /** Map coordinates to screen pixels (the SVG keeps its aspect ratio, so one scale fits both axes). */
+  private toScreen([mx, my]: readonly number[]) {
+    const r = document.querySelector('#war-map svg')!.getBoundingClientRect();
+    const v = this.view();
+    return [r.left + ((mx - v.x) / v.w) * r.width, r.top + ((my - v.y) / v.h) * r.height];
+  }
+
+  private toMap(clientX: number, clientY: number) {
+    const r = document.querySelector('#war-map svg')!.getBoundingClientRect();
+    const v = this.view();
+    return [v.x + ((clientX - r.left) / r.width) * v.w, v.y + ((clientY - r.top) / r.height) * v.h, (clientX - r.left) / r.width, (clientY - r.top) / r.height];
+  }
+
+  private flyTo(target: Cam, ms = 650) {
+    cancelAnimationFrame(this.camAnim);
+    const from = { ...this.cam };
+    const to = this.clamp(target);
+    return new Promise<void>((done) => {
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - t0) / ms);
+        const e = ease(t);
+        // Zoom moves in log space so flying in and out feel equally fast.
+        this.cam = this.clamp({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, k: from.k * (to.k / from.k) ** e });
+        this.applyCamera();
+        if (t < 1) this.camAnim = requestAnimationFrame(step);
+        else done();
+      };
+      this.camAnim = requestAnimationFrame(step);
+    });
+  }
+
+  private wireCamera() {
+    const el = $('#war-map');
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        cancelAnimationFrame(this.camAnim);
+        this.returnCam = null;
+        const [mx, my, fx, fy] = this.toMap(e.clientX, e.clientY);
+        const k = Math.min(MAX_ZOOM, Math.max(1, this.cam.k * Math.exp(-e.deltaY * 0.0018)));
+        // Keep the point under the cursor where it is.
+        const w = MAP.w / k;
+        const h = MAP.h / k;
+        this.cam = this.clamp({ k, x: mx - fx * w + w / 2, y: my - fy * h + h / 2 });
+        this.applyCamera();
+      },
+      { passive: false },
+    );
+    el.addEventListener('dblclick', (e) => {
+      const [mx, my] = this.toMap(e.clientX, e.clientY);
+      this.returnCam = null;
+      this.flyTo({ x: mx, y: my, k: this.cam.k * 2 }, 400);
+    });
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      this.drag = { x: e.clientX, y: e.clientY, cam: { ...this.cam }, moved: false };
+    });
+    window.addEventListener('pointermove', (e) => {
+      const d = this.drag;
+      if (!d) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 4) return;
+      if (!d.moved) {
+        d.moved = true;
+        cancelAnimationFrame(this.camAnim);
+        this.returnCam = null;
+        el.classList.add('dragging');
+        $('#war-tip').hidden = true;
+      }
+      const r = el.getBoundingClientRect();
+      const v = this.view(d.cam);
+      this.cam = this.clamp({ ...d.cam, x: d.cam.x - (dx / r.width) * v.w, y: d.cam.y - (dy / r.height) * v.h });
+      this.applyCamera();
+    });
+    window.addEventListener('pointerup', () => {
+      // A drag shouldn't also count as a click on whatever it ended over.
+      this.dragged = !!this.drag?.moved;
+      this.drag = null;
+      el.classList.remove('dragging');
+      setTimeout(() => (this.dragged = false), 0);
+    });
   }
 
   private sitrep() {

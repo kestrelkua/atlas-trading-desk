@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature, merge, mesh } from 'topojson-client';
-import { geoCentroid, geoGraticule10, geoNaturalEarth1, geoPath } from 'd3-geo';
+import { geoCentroid, geoContains, geoGraticule10, geoInterpolate, geoNaturalEarth1, geoPath } from 'd3-geo';
 
 const require = createRequire(import.meta.url);
 const topo = JSON.parse(readFileSync(require.resolve('world-atlas/countries-110m.json'), 'utf8'));
@@ -88,11 +88,29 @@ const PLACES = {
 };
 const places = Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, { at: P(...p.at), label: P(...p.label) }]));
 
-const line = (coordinates) => path({ type: 'LineString', coordinates });
+/** Sea lanes must stay at sea: warn about any stretch that cuts across the drawn land. */
+const land = feature(topo, coll);
+function checkSea(id, pts) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const f = geoInterpolate(pts[i], pts[i + 1]);
+    for (let t = 0; t <= 1; t += 0.04) {
+      const p = f(t);
+      const canal = p[0] > 31.8 && p[0] < 34.2 && p[1] > 27.5 && p[1] < 31.4; // the Sue-Us Canal and its gulf are too narrow to draw at this scale
+      if (!canal && land.features.some((c) => geoContains(c, p))) {
+        console.warn(`lane ${id}: segment ${i} crosses land near [${p.map((v) => v.toFixed(1))}]`);
+        break;
+      }
+    }
+  }
+}
+const line = (coordinates, id) => {
+  if (id) checkSea(id, coordinates);
+  return path({ type: 'LineString', coordinates });
+};
 const lanes = {
-  hormuzzle: line([[51, 27.2], [56.8, 25.6], [60, 22], [72, 11], [82, 6], [95, 6], [100.5, 3.5], [105, 6], [114, 15], [122, 30]]),
-  sueus: line([[56.8, 25.6], [58.5, 20], [52, 13.5], [43.4, 12.4], [38, 20], [33.5, 27.5], [32.5, 31.5], [25, 34], [12, 37], [0, 37], [-6.5, 35.9], [-10, 44], [-5, 49]]),
-  fab: line([[120.5, 23.5], [114, 15], [105, 6], [100.5, 3.5]]),
+  hormuzzle: line([[51.5, 27], [54.5, 26.4], [56.5, 26.6], [57.8, 25.2], [61, 23], [65, 18], [72, 10], [76.5, 6], [80, 5], [86, 5], [93, 6.5], [96, 7], [98.5, 4.8], [100.4, 3], [101.8, 2.1], [102.8, 1.6], [103.6, 0.9], [104.6, 1.3], [106, 4], [110, 10], [114, 16], [118.5, 22], [119.7, 24.2], [121.5, 27], [123, 30.5]], 'hormuzzle'),
+  sueus: line([[56.5, 26.6], [57.8, 25.2], [61, 23], [58, 17], [52.5, 13.8], [48, 12.4], [43.5, 12.6], [41, 15.5], [38.5, 20], [35.8, 24.5], [34.2, 27.3], [33.1, 28.6], [32.5, 30], [32.4, 31.5], [28, 33.5], [20, 34.5], [15.5, 36], [11.8, 37.4], [8, 38.2], [2, 37.5], [-2, 36.1], [-4.5, 35.95], [-5.6, 35.9], [-6.5, 35.9], [-9.5, 36.5], [-10, 42], [-8, 46], [-6, 48.5]], 'sueus'),
+  fab: line([[119.7, 24.2], [118.5, 22], [114, 16], [110, 10]], 'fab'),
   atlantic: line([[-74, 40.7], [-0.5, 51.5]]),
 };
 

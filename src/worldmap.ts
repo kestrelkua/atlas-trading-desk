@@ -77,7 +77,8 @@ export interface MapDot {
   id: number;
   at: [number, number];
   tone: 'conflict' | 'calm' | 'econ';
-  fresh: boolean;
+  /** fresh: just landed (rippling) · old: unread for a while (dimmed) · leaving: read, fading out. */
+  state: 'fresh' | '' | 'old' | 'leaving';
 }
 
 export type Light = 'red' | 'amber' | 'green';
@@ -91,17 +92,6 @@ const ICONS = `
   <symbol id="ic-shield" viewBox="0 0 12 12"><path d="M6 1l4.5 1.6V6c0 2.6-2 4.3-4.5 5C3.5 10.3 1.5 8.6 1.5 6V2.6Z"/></symbol>
   <symbol id="ic-battery" viewBox="0 0 12 12"><rect x="1.5" y="3.5" width="8" height="5" rx="1"/><rect x="9.8" y="5" width="1.2" height="2"/></symbol>
   <symbol id="ic-ore" viewBox="0 0 12 12"><path d="M1.5 4.5Q6 .5 10.5 4.5" class="stroke"/><path d="M6 2.6V11" class="stroke"/></symbol>`;
-
-const LEGEND = (() => {
-  const row = (x: number, y: number, cls: string, text: string) =>
-    `<line class="lg ${cls}" x1="${x}" y1="${y}" x2="${x + 18}" y2="${y}"/><text x="${x + 24}" y="${y + 4}">${text}</text>`;
-  return `<g class="legend" transform="translate(14 ${MAP.h - 84})">
-    <rect width="150" height="74" rx="6"/>
-    ${row(10, 16, 'stable', 'Stable')}${row(82, 16, 'tense', 'Tense')}
-    ${row(10, 36, 'conflict', 'Conflict')}${row(82, 36, 'easing', 'Easing')}
-    ${row(10, 56, 'lane', 'Shipping lane')}
-  </g>`;
-})();
 
 export interface MapState {
   lit: Record<string, Light>;
@@ -153,8 +143,8 @@ export function renderMap({ lit, dots, cuts, tension }: MapState) {
 
   const pins = dots
     .map(
-      (d) => `<g class="dot ${d.tone} ${d.fresh ? 'fresh' : ''}" data-dot="${d.id}" transform="translate(${d.at[0]} ${d.at[1]})">
-        <circle class="ring" r="6"/><circle class="core" r="5"/><circle class="hit" r="14"/></g>`,
+      (d) => `<g class="dot ${d.tone} ${d.state}" data-dot="${d.id}" transform="translate(${d.at[0]} ${d.at[1]})"><g class="pin">
+        <circle class="ring" r="6"/><circle class="core" r="5"/><circle class="hit" r="14"/></g></g>`,
     )
     .join('');
 
@@ -162,6 +152,6 @@ export function renderMap({ lit, dots, cuts, tension }: MapState) {
     <defs>${ICONS}</defs>
     <path class="sphere" d="${MAP.sphere}"/>
     <path class="graticule" d="${MAP.graticule}"/>
-    ${nations}${fronts}${lanes}${icons}${labels}${places}${LEGEND}${pins}
+    ${nations}${fronts}${lanes}${icons}${labels}${places}${pins}
   </svg>`;
 }

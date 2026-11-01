@@ -1365,35 +1365,113 @@ table.plain th.r {
   font-style: italic;
   opacity: 0.8;
 }
-.world .legend rect {
-  fill: var(--wr-bg);
-  opacity: 0.85;
-  stroke: #1d3a50;
+.map-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.15rem 0.8rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #1d3a50;
+  background: rgba(11, 22, 34, 0.85);
+  color: #93aab9;
+  font-size: 0.76rem;
+  pointer-events: none;
 }
-.world .legend text {
-  fill: #93aab9;
-  font-size: 12px;
+.map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
-.world .legend .lg {
-  stroke-width: 2;
+.map-legend .lg {
+  display: inline-block;
+  width: 16px;
+  border-top: 2px solid;
 }
-.world .lg.stable {
-  stroke: var(--wr-edge);
-  opacity: 0.6;
+.map-legend .lg.stable {
+  border-color: rgba(63, 182, 201, 0.6);
 }
-.world .lg.tense {
-  stroke: var(--wr-amber);
+.map-legend .lg.tense {
+  border-color: var(--wr-amber);
 }
-.world .lg.conflict {
-  stroke: var(--wr-red);
-  stroke-width: 2.6;
+.map-legend .lg.conflict {
+  border-color: var(--wr-red);
+  border-top-width: 3px;
 }
-.world .lg.easing {
-  stroke: var(--wr-green);
+.map-legend .lg.easing {
+  border-color: var(--wr-green);
 }
-.world .lg.lane {
-  stroke: var(--wr-edge);
-  stroke-dasharray: 5 3;
+.map-legend .lg.lane {
+  border-top: 2px dashed var(--wr-edge);
+}
+.map-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #1d3a50;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.map-zoom button {
+  width: 30px;
+  height: 28px;
+  border: 0;
+  border-bottom: 1px solid #1d3a50;
+  background: rgba(11, 22, 34, 0.9);
+  color: #cfe3e8;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.map-zoom button:last-child {
+  border-bottom: 0;
+  font-size: 0.95rem;
+}
+.map-zoom button:hover {
+  background: #1a3346;
+}
+#war-map {
+  cursor: grab;
+  touch-action: none;
+}
+#war-map.dragging {
+  cursor: grabbing;
+}
+.world .nation,
+.world .front,
+.world .lane,
+.world .leader,
+.world .graticule {
+  vector-effect: non-scaling-stroke;
+}
+.world .label {
+  font-size: calc(13px / var(--zs, 1));
+}
+.world .place text {
+  font-size: calc(12px / var(--zs, 1));
+}
+.world .place circle {
+  r: calc(2.6px / var(--zs, 1));
+}
+.world .dot .pin {
+  transform: scale(calc(1 / var(--zs, 1)));
+}
+.world .dot.old .pin {
+  opacity: 0.5;
+}
+.world .dot.leaving .pin {
+  animation: dotLeave 1.2s ease forwards;
+}
+@keyframes dotLeave {
+  to {
+    opacity: 0;
+    transform: scale(calc(0.4 / var(--zs, 1)));
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .world .front,

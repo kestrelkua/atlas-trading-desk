@@ -148,6 +148,16 @@
       <div class="war-grid">
         <section class="map-card">
           <div id="war-map"></div>
+          <div class="map-zoom" aria-label="Map zoom">
+            <button data-war="zoom" data-v="in" title="Zoom in">+</button>
+            <button data-war="zoom" data-v="out" title="Zoom out">−</button>
+            <button data-war="zoom" data-v="home" title="Whole world">⤢</button>
+          </div>
+          <div class="map-legend" aria-hidden="true">
+            <span><i class="lg stable"></i>Stable</span><span><i class="lg tense"></i>Tense</span>
+            <span><i class="lg conflict"></i>Conflict</span><span><i class="lg easing"></i>Easing</span>
+            <span><i class="lg lane"></i>Shipping lane</span>
+          </div>
           <div id="war-tip" class="war-tip" hidden></div>
           <div id="war-pop" class="war-pop" hidden></div>
           <div id="sitrep" class="sitrep" hidden></div>
