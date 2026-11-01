@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Atlas: a compass rose with a rising candlestick chart inside it. Content stays within the maskable safe zone (80%). -->
+  <rect width="512" height="512" fill="#13202b"/>
+  <circle cx="256" cy="256" r="232" fill="#172836"/>
+  <!-- Faint compass rose behind the chart -->
+  <path d="M256 70 L276 256 L256 442 L236 256 Z" fill="#f3ecdc" opacity="0.10"/>
+  <path d="M70 256 L256 236 L442 256 L256 276 Z" fill="#f3ecdc" opacity="0.06"/>
+  <!-- Rings -->
+  <circle cx="256" cy="256" r="194" fill="none" stroke="#d4a957" stroke-width="14"/>
+  <circle cx="256" cy="256" r="166" fill="none" stroke="#d4a957" stroke-width="3" stroke-dasharray="3 11" opacity="0.7"/>
+  <!-- North marker -->
+  <path d="M256 40 L270 70 L242 70 Z" fill="#d4a957"/>
+  <!-- Candlesticks, trending up -->
+  <g stroke-width="7" stroke-linecap="round">
+    <line x1="168" y1="262" x2="168" y2="356" stroke="#d56a50"/>
+    <rect x="148" y="284" width="40" height="52" rx="4" fill="#d56a50"/>
+    <line x1="226" y1="226" x2="226" y2="326" stroke="#5fb39a"/>
+    <rect x="206" y="246" width="40" height="62" rx="4" fill="#5fb39a"/>
+    <line x1="284" y1="214" x2="284" y2="276" stroke="#d56a50"/>
+    <rect x="264" y="228" width="40" height="34" rx="4" fill="#d56a50"/>
+    <line x1="342" y1="150" x2="342" y2="262" stroke="#5fb39a"/>
+    <rect x="322" y="166" width="40" height="82" rx="4" fill="#5fb39a"/>
+  </g>
+  <!-- Trend line with an arrowhead, like a needle pointing the way -->
+  <polyline points="140,372 226,300 284,286 372,186" fill="none" stroke="#f3ecdc" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <path d="M388 166 L384 206 L352 186 Z" fill="#f3ecdc" opacity="0.9"/>
+</svg>
