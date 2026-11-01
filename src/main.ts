@@ -10,9 +10,10 @@ import { LESSONS, type RoundFacts } from './lessons';
 import { REACTION_BARS, explainGrade, gradeCall, type Choice, type NewsCall } from './news';
 import { level, loadProfile, markLessonSeen, recommend, recordObjective, recordRound, resetProfile, saveProfile } from './profile';
 import { Replay } from './replay';
-import { scoreRound } from './skills';
+import { SKILLS, scoreRound } from './skills';
 import { TUTORIAL_CHART, TUTORIAL_NEWS_BAR, Tutorial, tutorialResult } from './tutorial';
 import { WarRoom } from './war';
+import { homeView, wireHome } from './home';
 import { loadWarProfile, resetWarProfile } from './warlearn';
 import type { Bar, Mode, Raw, Scenario } from './types';
 import * as ui from './ui';
@@ -771,12 +772,23 @@ function showView(view: string) {
 }
 
 function renderHome() {
-  const fresh = !state.profile.tutorialDone;
-  $('#door-start').hidden = !fresh;
-  $('#door-sim-sub').textContent = fresh
-    ? 'One stock, one chart. A guided four-minute first round.'
-    : 'One stock, one chart. Learn to read it and trade it.';
+  const p = state.profile;
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const played = [...p.rounds.map((r) => r.at), ...loadWarProfile().rounds.map((r) => r.at)].map((at) => new Date(at)).filter((d) => d >= monday);
+  const week = Array.from({ length: 7 }, (_, i) => played.some((d) => (d.getDay() + 6) % 7 === i));
+  const rec = recommend(p);
+  $('#view-home').innerHTML = homeView({
+    fresh: !p.tutorialDone,
+    levelName: p.rounds.length ? level(p).name : null,
+    week,
+    roundsThisWeek: played.length,
+    simInProgress: simStarted && !tutorial.active && (state.phase === 'playing' || state.phase === 'paused'),
+    war: war.status(),
+    focus: rec ? { skill: SKILLS.find((k) => k.id === rec.lesson.skill)!.name, challenge: rec.lesson.challenge } : null,
+  });
 }
+wireHome($('#view-home'), renderHome);
 
 function finishTutorial() {
   tutorial.stop();

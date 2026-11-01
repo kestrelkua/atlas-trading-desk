@@ -2373,3 +2373,240 @@ body[data-view='home'] #help-btn {
 .door-badge[hidden] {
   display: none;
 }
+/* ---------- Home, warmer ---------- */
+.home {
+  position: relative;
+  overflow: hidden;
+  align-items: flex-start;
+}
+.home-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 75%);
+}
+.home-backdrop .land {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.8;
+  opacity: 0.09;
+}
+.home-backdrop .grat {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.5;
+  opacity: 0.05;
+}
+.home-inner {
+  position: relative;
+  padding-top: 1.5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home-mark {
+    animation: compassHello 1.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  }
+  .home-inner > * {
+    animation: homeIn 0.6s ease both;
+  }
+  .home-inner > :nth-child(2) { animation-delay: 0.05s; }
+  .home-inner > :nth-child(3) { animation-delay: 0.1s; }
+  .home-inner > :nth-child(n + 4) { animation-delay: 0.15s; }
+}
+@keyframes compassHello {
+  0% { transform: rotate(-35deg) scale(0.9); opacity: 0; }
+  60% { transform: rotate(8deg) scale(1); opacity: 1; }
+  100% { transform: rotate(0); }
+}
+@keyframes homeIn {
+  from { opacity: 0; transform: translateY(6px); }
+}
+.home-greet {
+  font-family: 'Alegreya Sans', sans-serif;
+  font-weight: 700;
+  font-size: 2.1rem;
+  line-height: 1.15;
+  margin: 0.8rem 0 0.2rem;
+}
+.name-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  border-bottom: 2px dotted transparent;
+}
+.name-btn:hover {
+  border-bottom-color: var(--accent);
+}
+.home-status {
+  color: var(--ink-2);
+  margin: 0;
+}
+.name-ask {
+  margin: 0.3rem 0 0;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--ink-3);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--accent);
+}
+.name-form {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+}
+.name-form[hidden] {
+  display: none;
+}
+.name-form input {
+  font: inherit;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  width: 12rem;
+}
+.week {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+}
+.week .day {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+}
+.week .day.on {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--paper);
+  font-weight: 700;
+}
+.week .day.today {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.next-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  margin: 1.4rem 0 1rem;
+  padding: 1rem 2.6rem 1rem 1.1rem;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--paper);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.15s, filter 0.15s;
+}
+.next-card:hover {
+  filter: brightness(1.08);
+}
+.next-card:active {
+  transform: scale(0.99);
+}
+.next-kicker {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
+.next-title {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+.next-sub {
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+.next-arrow {
+  position: absolute;
+  right: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.4rem;
+}
+.door {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.9rem;
+}
+.door svg {
+  flex-shrink: 0;
+  width: 48px;
+  height: 32px;
+  color: var(--ink-3);
+}
+.door svg .up {
+  fill: var(--up);
+}
+.door svg .dn {
+  fill: var(--down);
+}
+.door svg .pin {
+  fill: var(--down);
+  stroke: none;
+}
+.door svg .bar {
+  stroke: var(--gold);
+}
+.door-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.thought {
+  margin: 1.8rem auto 0;
+  max-width: 30rem;
+  color: var(--ink-2);
+}
+.thought blockquote {
+  margin: 0;
+  font-style: italic;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+.thought figcaption {
+  margin-top: 0.3rem;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.08em;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+.thought figcaption::before {
+  content: '— ';
+}
+@media (max-width: 720px) {
+  .home-greet {
+    font-size: 1.7rem;
+  }
+  .home-mark {
+    width: 72px;
+    height: 72px;
+  }
+}

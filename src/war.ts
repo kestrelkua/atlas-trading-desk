@@ -405,6 +405,12 @@ export class WarRoom {
     if (this.phase === 'loading' && !this.insts.length) await this.newCrisis();
   }
 
+  /** A crisis you're in the middle of, for Home's "pick up where you left off". */
+  status() {
+    if (this.phase !== 'playing' && this.phase !== 'paused') return null;
+    return { op: this.crisis.op, day: Math.max(1, this.cur - PRE + 1) };
+  }
+
   pause() {
     if (this.phase === 'playing') {
       this.replay?.pause();
