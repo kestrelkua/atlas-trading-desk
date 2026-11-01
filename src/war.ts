@@ -668,7 +668,7 @@ export class WarRoom {
   private sitrep() {
     const c = this.crisis;
     return `
-      <div class="kicker">Situation report · classified-ish</div>
+      <div class="kicker">Situation report</div>
       <h3 class="op">${c.op}</h3>
       <p>${c.story}</p>
       <p class="muted">You manage $100,000 across six markets. Buy what you think will win, short what you think will lose, and move money as the news breaks. Each click trades your chosen amount. Positions can total up to ${MAX_GROSS}× your equity.</p>
@@ -702,7 +702,7 @@ export class WarRoom {
       ${rows.map((r) => `<tr><td>${r.i.name}</td><td class="r ${tone(r.chg)}">${pct(r.chg)}</td><td class="r ${tone(r.pnl)}">${r.pnl ? money(r.pnl) : '—'}</td></tr>`).join('')}
       </tbody></table>
       <p>The winning rotation was <b>long ${best.i.name}</b> (${pct(best.chg)})${worst.chg < 0 ? ` and <b>short ${worst.i.name}</b> (${pct(worst.chg)})` : ''}. In a crisis, the money doesn't disappear. It moves.</p>
-      <p class="hint">War Economy is a just-for-fun mode, so it doesn't affect your skill ratings yet.</p>
+      <p class="hint">War Room rounds don't affect your skill ratings yet.</p>
       <div class="modal-actions">
         <button class="btn ghost" data-act="review">Review</button>
         <button class="btn primary" data-war-new>New crisis</button>
