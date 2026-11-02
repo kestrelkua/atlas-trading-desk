@@ -5,6 +5,7 @@
 import { LESSONS } from './lessons';
 import { LEVELS, level, type Profile } from './profile';
 import { WAR_LESSONS, type WarProfile } from './warlearn';
+import { dailyPlays } from './daily';
 
 export interface Stamp {
   id: string;
@@ -47,6 +48,7 @@ function all(p: Profile, w: WarProfile): Omit<Stamp, 'date'>[] {
   return [
     { id: 'tutorial', title: 'First steps', sub: 'Finished the tutorial', kind: 'start', earned: p.tutorialDone },
     { id: 'first-round', title: 'First voyage', sub: 'Played a full round', kind: 'start', earned: p.rounds.length > 0 },
+    { id: 'first-daily', title: 'Stock of the day', sub: 'Played a Game of the Day', kind: 'start', earned: dailyPlays().length > 0 },
     { id: 'first-crisis', title: 'Into the War Room', sub: 'Saw a crisis through', kind: 'start', earned: w.rounds.length > 0 },
     ...LEVELS.slice(1).map((l, i) => ({ id: `rank-${l.name}`, title: l.name, sub: 'Rank reached', kind: 'rank' as const, earned: rank >= i + 1 })),
     ...CRISES.map((c) => ({ id: `crisis-${c}`, title: c.replace(/^The /, ''), sub: 'Crisis completed', kind: 'crisis' as const, earned: crises.has(c) })),

@@ -13,6 +13,7 @@ import { Replay } from './replay';
 import { SKILLS, scoreRound } from './skills';
 import { TUTORIAL_CHART, TUTORIAL_NEWS_BAR, Tutorial, tutorialResult } from './tutorial';
 import { WarRoom } from './war';
+import { DailyView, dailyLabel, dailyPlays, dailyResult, loadDailyGame } from './daily';
 import { clearWelcome, esc, getWelcome, homeView, noteToShow, periodOf, setWelcome, startPulse, wireHome, type HomeContext } from './home';
 import { passportView, takeNewStamp } from './passport';
 import { loadWarProfile, resetWarProfile } from './warlearn';
@@ -62,6 +63,7 @@ const state = {
 
 const chart = new ChartView($('#chart-main'), $('#chart-macd'));
 const war = new WarRoom();
+const daily = new DailyView($('#view-daily'));
 
 const tutorial = new Tutorial({
   resume: () => {
@@ -925,13 +927,18 @@ function showView(view: string) {
   if (view !== 'sim' && tutorial.active && !tutorial.free) return;
   document.body.dataset.view = view;
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.view === view));
-  for (const v of ['home', 'sim', 'war', 'lessons']) $(`#view-${v}`).hidden = v !== view;
+  for (const v of ['home', 'sim', 'war', 'daily', 'lessons']) $(`#view-${v}`).hidden = v !== view;
   if (view !== 'sim' && state.phase === 'playing') togglePlay();
   if (view !== 'sim') saveSim();
   if (view !== 'war') war.pause();
+  if (view !== 'daily') daily.pause();
+  if (view === 'daily') daily.open();
   if (view === 'lessons') renderLessons();
   if (view === 'war') war.ensureStarted();
-  if (view === 'home') renderHome();
+  if (view === 'home') {
+    homeLine = null;
+    renderHome();
+  }
   if (view === 'sim' && !simStarted) {
     const saved = state.profile.tutorialDone ? loadSimSave() : null;
     if (saved) {
@@ -969,28 +976,41 @@ const startOfWeek = (now: Date) => new Date(now.getFullYear(), now.getMonth(), n
 /** "Market weather": one calm sentence about the latest real trading day, only while the data is fresh. */
 let weather: string | null | undefined;
 let pulse: HomeContext['pulse'] = null;
+let dailyDoor: HomeContext['daily'] = null;
+/** Worked out once per visit: announcing a stamp marks it seen, so a redraw must not ask again. */
+let homeLine: string | null = null;
 async function loadWeather() {
   if (weather !== undefined) return;
   weather = null;
   try {
-    const m = await loadManifest();
-    const spy = await loadSeries('daily', m.market);
-    const last = spy[spy.length - 1];
-    const age = Date.now() / 1000 - last[0];
+    // Prefer the daily game's file: it is refreshed after every close.
+    const game = await loadDailyGame();
+    if (game) dailyDoor = { label: dailyLabel(game.date), played: !!dailyResult(game.date)?.done };
+    let lastT: number;
+    let c: number[];
+    let series: { name: string; closes: number[] }[];
+    if (game) {
+      lastT = game.market.t;
+      c = game.market.closes;
+      series = game.sectors;
+    } else {
+      const m = await loadManifest();
+      const spy = await loadSeries('daily', m.market);
+      lastT = spy[spy.length - 1][0];
+      c = spy.map((x) => x[4]);
+      series = await Promise.all(Object.entries(m.sectors).map(async ([name, { etf }]) => ({ name, closes: (await loadSeries('daily', etf)).map((x) => x[4]) })));
+    }
+    const age = Date.now() / 1000 - lastT;
     // The weekly pulse stays useful a little longer than a single day's weather.
     if (age > 14 * 86_400) return;
-    const c = spy.map((x) => x[4]);
     const d1 = (c[c.length - 1] / c[c.length - 2] - 1) * 100;
-    const sectors = await Promise.all(
-      Object.entries(m.sectors).map(async ([name, { etf }]) => {
-        const sc = (await loadSeries('daily', etf)).map((x) => x[4]);
-        const n = sc.length;
-        return { name, d1: (sc[n - 1] / sc[n - 2] - 1) * 100, week: (sc[n - 1] / sc[n - 6] - 1) * 100, spark: sc.slice(-22) };
-      }),
-    );
-    const asOf = new Date(last[0] * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    const sectors = series.map(({ name, closes: sc }) => {
+      const n = sc.length;
+      return { name, d1: (sc[n - 1] / sc[n - 2] - 1) * 100, week: (sc[n - 1] / sc[n - 6] - 1) * 100, spark: sc.slice(-22) };
+    });
+    const asOf = new Date(lastT * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
     // Short names keep the bubble on one line on a phone.
-    const short = (n: string) => n.replace('Consumer Discretionary', 'Consumer');
+    const short = (n: string) => n.replace('Consumer Discretionary', 'Consumer').replace('Consumer Staples', 'Staples');
     pulse = { sectors: sectors.map(({ name, week, spark }) => ({ name: short(name), week, spark })), asOf };
     if (age > 5 * 86_400) {
       if (!$('#view-home').hidden) renderHome();
@@ -998,7 +1018,7 @@ async function loadWeather() {
     }
     sectors.sort((a, b) => b.d1 - a.d1);
     const sky = d1 <= -2.5 ? 'a storm' : d1 <= -1 ? 'choppy water' : d1 < 0.5 && d1 > -0.5 ? 'calm seas' : d1 >= 1 ? 'fair winds' : d1 > 0 ? 'a light tailwind' : 'a light headwind';
-    const day = new Date(last[0] * 1000).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
+    const day = new Date(lastT * 1000).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
     weather = `${day}: ${sky}. ${sectors[0].name} led, ${sectors[sectors.length - 1].name} lagged.`;
     if (!$('#view-home').hidden) renderHome();
   } catch {
@@ -1010,7 +1030,7 @@ function renderHome() {
   const p = state.profile;
   const now = new Date();
   const monday = startOfWeek(now);
-  const played = [...p.rounds.map((r) => r.at), ...loadWarProfile().rounds.map((r) => r.at)].map((at) => new Date(at)).filter((d) => d >= monday);
+  const played = [...p.rounds.map((r) => r.at), ...loadWarProfile().rounds.map((r) => r.at), ...dailyPlays()].map((at) => new Date(at)).filter((d) => d >= monday);
   const rec = recommend(p);
   const sim = simResumeInfo();
   const ws = war.status();
@@ -1019,13 +1039,14 @@ function renderHome() {
   home.innerHTML = homeView(
     {
       fresh: !p.tutorialDone,
-      line: knowsYouLine(),
+      line: (homeLine ??= knowsYouLine()),
       week: Array.from({ length: 7 }, (_, i) => played.some((d) => (d.getDay() + 6) % 7 === i)),
       sim: sim ? { label: `${sim.name}, your Simulator round`, day: sim.day, at: sim.at } : null,
       war: ws ? { label: ws.op, day: ws.day, at: ws.at } : null,
       focus: rec ? { skill: SKILLS.find((k) => k.id === rec.lesson.skill)!.name, challenge: rec.lesson.challenge } : null,
       weather: weather ?? null,
       pulse,
+      daily: dailyDoor,
     },
     now,
   );
@@ -1057,6 +1078,7 @@ function applyTheme(t: string) {
   }
   chart.applyTheme();
   war.applyTheme();
+  daily.applyTheme();
   drawPositionLines();
   drawLiquidity();
   state.levels.forEach((p, i) => chart.setLine(`lvl-${i + 1}`, p, { color: css('--gold'), title: 'Level', style: LineStyle.Dotted }));

@@ -24,6 +24,8 @@ export interface HomeContext {
   weather: string | null;
   /** Sectors for the little pulse bubble, plus the last trading day they cover. */
   pulse: { sectors: SectorPulse[]; asOf: string } | null;
+  /** The latest Game of the Day, once its file has loaded. */
+  daily: { label: string; played: boolean } | null;
 }
 
 export interface SectorPulse {
@@ -172,6 +174,7 @@ function card(c: HomeContext, now: Date) {
 const DOOR_ART = {
   sim: `<svg viewBox="0 0 48 32" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="9" y1="12" x2="9" y2="28"/><line x1="19" y1="8" x2="19" y2="24"/><line x1="29" y1="11" x2="29" y2="21"/><line x1="39" y1="3" x2="39" y2="19"/></g><rect x="6" y="16" width="6" height="8" rx="1" class="dn"/><rect x="16" y="11" width="6" height="10" rx="1" class="up"/><rect x="26" y="13" width="6" height="5" rx="1" class="dn"/><rect x="36" y="6" width="6" height="11" rx="1" class="up"/></svg>`,
   war: `<svg viewBox="0 0 48 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="24" cy="16" r="13"/><ellipse cx="24" cy="16" rx="6" ry="13"/><line x1="11" y1="16" x2="37" y2="16"/><path d="M13 9.5h22M13 22.5h22" stroke-width="1.1"/><circle cx="31" cy="11" r="2.2" class="pin"/></svg>`,
+  daily: `<svg viewBox="0 0 48 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="10" y="4" width="28" height="25" rx="3"/><line x1="10" y1="11" x2="38" y2="11"/><line x1="17" y1="2" x2="17" y2="7" stroke-linecap="round"/><line x1="31" y1="2" x2="31" y2="7" stroke-linecap="round"/><line x1="24" y1="14" x2="24" y2="26" stroke-linecap="round"/><rect x="21" y="16.5" width="6" height="7" rx="1" class="up" stroke="none"/></svg>`,
   lessons: `<svg viewBox="0 0 48 32" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="8" x2="42" y2="8" opacity="0.3"/><line x1="6" y1="16" x2="42" y2="16" opacity="0.3"/><line x1="6" y1="24" x2="42" y2="24" opacity="0.3"/></g><g stroke-width="3.2" stroke-linecap="round"><line x1="6" y1="8" x2="30" y2="8" class="bar"/><line x1="6" y1="16" x2="22" y2="16" class="bar"/><line x1="6" y1="24" x2="36" y2="24" class="bar"/></g></svg>`,
 };
 
@@ -226,6 +229,9 @@ export function homeView(c: HomeContext, now = new Date()) {
       <nav class="doors" aria-label="Where to">
         <button class="door" data-go="sim">${DOOR_ART.sim}<span class="door-text"><span class="door-title">Simulator</span><span class="door-sub">One stock, one chart. Learn to read it and trade it.</span></span></button>
         <button class="door" data-go="war">${DOOR_ART.war}<span class="door-text"><span class="door-title">War Room</span><span class="door-sub">Zoom out: follow the money when the world shakes.</span></span></button>
+        <button class="door" data-go="daily">${DOOR_ART.daily}<span class="door-text"><span class="door-title">Game of the Day</span><span class="door-sub">${
+          c.daily ? (c.daily.played ? `✓ Played ${esc(c.daily.label)}. A new stock after the next close.` : `${esc(c.daily.label)} · one real stock, under five minutes.`) : 'One real stock a day, under five minutes.'
+        }</span></span></button>
         <button class="door" data-go="lessons">${DOOR_ART.lessons}<span class="door-text"><span class="door-title">Lessons &amp; Progress</span><span class="door-sub">Your skills, your passport, and what to practice next.</span></span></button>
       </nav>
       ${c.pulse ? pulseHtml(c.pulse) : ''}
