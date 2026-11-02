@@ -6,8 +6,9 @@ import type { Bar, Raw } from './types';
 import { money, pct, tone } from './ui';
 import { MAP } from './mapdata';
 import { WarBriefing } from './warbriefing';
+import { setWelcome } from './home';
 import {
-  CALL_POINTS, THESES, WAR_SKILLS, gradeCall, loadWarProfile, recommendWar, recordWarRound, saveWarProfile, scoreWar, thesisName,
+  CALL_POINTS, THESES, WAR_LESSONS, WAR_SKILLS, gradeCall, loadWarProfile, recommendWar, recordWarRound, saveWarProfile, scoreWar, thesisName,
   type CallGrade, type ThesisId, type WarFacts, type WarLesson, type WarScores,
 } from './warlearn';
 import { ICON_INFO, LANE_INFO, PLACE_INFO, anchor, nationById, placeName, renderMap, type Light, type MapDot } from './worldmap';
@@ -350,6 +351,44 @@ const etMonth = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York',
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
+const WAR_SAVE = 'atlas.save.war.v1';
+
+interface WarSave {
+  at: number;
+  crisis: string;
+  next: number;
+  bars: Record<string, Bar[]>;
+  labels: string[];
+  ticks: string[];
+  baseVol: number;
+  events: WarEvent[];
+  revealed: number[];
+  port: Partial<Portfolio>;
+  fills: Fill[];
+  calls: DeskCall[];
+  race: { you: number[]; world: number[] };
+  stats: { hitW: number; totW: number; grossSum: number; closes: number };
+  hold: { qty: Record<string, number>; px: Snap };
+  tension: number;
+  lesson: string | null;
+  thesis: ThesisId;
+  size: number;
+}
+
+function loadWarSave(): WarSave | null {
+  try {
+    return JSON.parse(localStorage.getItem(WAR_SAVE) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function clearWarSave() {
+  try {
+    localStorage.removeItem(WAR_SAVE);
+  } catch {}
+}
+
 export class WarRoom {
   private crisis!: Crisis;
   private insts: Inst[] = [];
@@ -400,21 +439,108 @@ export class WarRoom {
     $('#war-plays').innerHTML = PLAYBOOKS.map((p) => `<button class="btn small play" data-war="play-book" data-v="${p.id}" title="${p.hint}">${p.name}</button>`).join('');
   }
 
-  /** Called when the tab is shown for the first time. */
+  /** Called when the tab is shown for the first time: resumes a saved crisis, or starts a new one. */
   async ensureStarted() {
-    if (this.phase === 'loading' && !this.insts.length) await this.newCrisis();
+    if (this.phase !== 'loading' || this.insts.length) return;
+    const saved = loadWarSave();
+    if (saved && CRISES.some((c) => c.id === saved.crisis)) this.restore(saved);
+    else await this.newCrisis();
   }
 
-  /** A crisis you're in the middle of, for Home's "pick up where you left off". */
+  /** Saves a crisis in progress so closing the app doesn't lose it. Resumes at the start of the forming day. */
+  save() {
+    if (!this.replay || (this.phase !== 'playing' && this.phase !== 'paused')) return;
+    const data: WarSave = {
+      at: Date.now(),
+      crisis: this.crisis.id,
+      next: Math.max(PRE, this.replay.i),
+      bars: Object.fromEntries(this.insts.map((x) => [x.id, x.bars])),
+      labels: this.labels,
+      ticks: this.ticks,
+      baseVol: this.baseVol,
+      events: this.events,
+      revealed: this.revealed.map((e) => e.id),
+      port: { ...this.port },
+      fills: this.fills,
+      calls: this.calls,
+      race: this.race,
+      stats: this.stats,
+      hold: this.hold,
+      tension: this.tension,
+      lesson: this.lesson?.id ?? null,
+      thesis: this.thesis,
+      size: this.size,
+    };
+    try {
+      localStorage.setItem(WAR_SAVE, JSON.stringify(data));
+    } catch {
+      /* storage full or unavailable: the crisis just won't survive a restart */
+    }
+  }
+
+  private restore(d: WarSave) {
+    this.crisis = CRISES.find((c) => c.id === d.crisis)!;
+    this.lastCrisis = this.crisis.id;
+    this.insts = BASKET.map((b) => {
+      const bars = d.bars[b.id];
+      return { ...b, bars, ind: new Indicators(bars), path: [], partial: bars[d.next - 1] };
+    });
+    this.labels = d.labels;
+    this.ticks = d.ticks;
+    this.baseVol = d.baseVol;
+    this.events = d.events;
+    this.revealed = d.events.filter((e) => d.revealed.includes(e.id));
+    this.port = Object.assign(new Portfolio(), d.port);
+    this.fills = d.fills;
+    this.calls = d.calls;
+    this.race = d.race;
+    this.stats = d.stats;
+    this.hold = d.hold;
+    this.tension = d.tension;
+    this.lesson = WAR_LESSONS.find((l) => l.id === d.lesson) ?? null;
+    this.thesis = d.thesis;
+    this.size = d.size;
+    document.querySelectorAll('[data-war="size"]').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.v === String(this.size)));
+    this.cur = d.next - 1;
+    this.cam = { ...HOME };
+    this.returnCam = null;
+    this.replay = new Replay(this.insts[0].bars, d.next, {
+      onBarOpen: (i) => this.onBarOpen(i),
+      onTick: (i) => this.onTick(i),
+      onBarClose: (i) => this.onBarClose(i),
+      onEnd: () => this.onEnd(),
+    });
+    this.replay.speed = this.speed;
+    this.setPhase('paused');
+    this.select('world');
+    this.renderThesis();
+    this.renderBasket(true);
+    this.renderMap();
+    this.renderLog();
+    this.renderHead();
+    this.renderHeat();
+    this.renderTicker();
+    this.renderTimeline();
+    $('#sitrep').innerHTML = this.sitrep();
+    $('#sitrep').hidden = true;
+    $('#war-pop').hidden = true;
+    this.flash('Welcome back. The crisis is paused right where you left it.', 'ok');
+  }
+
+  /** A crisis you're in the middle of (live or saved), for Home's "pick up where you left off". */
   status() {
-    if (this.phase !== 'playing' && this.phase !== 'paused') return null;
-    return { op: this.crisis.op, day: Math.max(1, this.cur - PRE + 1) };
+    if (this.phase === 'playing' || this.phase === 'paused') return { op: this.crisis.op, day: Math.max(1, (this.replay?.i ?? this.cur) - PRE), at: Date.now() };
+    if (this.phase !== 'loading') return null;
+    const d = loadWarSave();
+    const c = d && CRISES.find((x) => x.id === d.crisis);
+    return c ? { op: c.op, day: Math.max(1, d.next - PRE), at: d.at } : null;
   }
 
   pause() {
     if (this.phase === 'playing') {
       this.replay?.pause();
       this.setPhase('paused');
+      this.save();
     }
   }
 
@@ -424,6 +550,7 @@ export class WarRoom {
 
   private async newCrisis() {
     this.replay?.pause();
+    clearWarSave();
     this.setPhase('loading');
     const pool = CRISES.filter((c) => c.id !== this.lastCrisis);
     this.crisis = pickOne(pool);
@@ -586,6 +713,7 @@ export class WarRoom {
       this.race.world.push((world[i].c / world[PRE - 1].c - 1) * 100);
       this.track(i);
       this.checkDue(i);
+      if ((i - PRE) % 5 === 4) this.save();
     }
     this.renderMap();
     this.renderHead();
@@ -595,6 +723,7 @@ export class WarRoom {
 
   private onEnd() {
     this.setPhase('done');
+    clearWarSave();
     $('#debrief .modal-card').innerHTML = this.debrief();
     $('#debrief').hidden = false;
   }
@@ -1394,6 +1523,7 @@ export class WarRoom {
     }
     const panicRet = panicSeries[panicSeries.length - 1];
     const s = this.summary(f, panicRet, checked, scores);
+    setWelcome(this.bestMoment(f, checked, objective?.passed ?? false));
     const lines: [string, number[]][] = [['you', this.race.you], ['world', this.race.world], ['panic', panicSeries]];
     const all = lines.flatMap(([, xs]) => xs);
     const lo = Math.min(...all, -1);
@@ -1460,6 +1590,15 @@ export class WarRoom {
         <button class="btn ghost" data-act="review">Close</button>
         <button class="btn primary" data-war-new>New crisis</button>
       </div>`;
+  }
+
+  /** The single best true thing about the crisis, for Home's welcome-back line. Never the score. */
+  private bestMoment(f: WarFacts, checked: Fill[], objectiveMet: boolean) {
+    if (objectiveMet && this.lesson) return `You met your War Room objective from “${this.lesson.title}”.`;
+    const best = checked.filter((x) => x.verdict!.right).sort((a, b) => b.verdict!.pnl - a.verdict!.pnl)[0];
+    if (best) return `Your ${thesisName(best.thesis!).toLowerCase()} call on ${this.inst(best.inst).name} held up.`;
+    if (f.trades && f.ret > f.world) return `You finished ${(f.ret - f.world).toFixed(1)} points ahead of the World Index.`;
+    return `You saw ${this.crisis.op} through to the end.`;
   }
 
   /** Saves the reflection note onto the round just recorded. */
