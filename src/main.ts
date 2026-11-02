@@ -13,7 +13,7 @@ import { Replay } from './replay';
 import { SKILLS, scoreRound } from './skills';
 import { TUTORIAL_CHART, TUTORIAL_NEWS_BAR, Tutorial, tutorialResult } from './tutorial';
 import { WarRoom } from './war';
-import { clearWelcome, esc, getWelcome, homeView, noteToShow, periodOf, setWelcome, wireHome } from './home';
+import { clearWelcome, esc, getWelcome, homeView, noteToShow, periodOf, setWelcome, startPulse, wireHome, type HomeContext } from './home';
 import { passportView, takeNewStamp } from './passport';
 import { loadWarProfile, resetWarProfile } from './warlearn';
 import type { Bar, Mode, Raw, Scenario } from './types';
@@ -968,6 +968,7 @@ const startOfWeek = (now: Date) => new Date(now.getFullYear(), now.getMonth(), n
 
 /** "Market weather": one calm sentence about the latest real trading day, only while the data is fresh. */
 let weather: string | null | undefined;
+let pulse: HomeContext['pulse'] = null;
 async function loadWeather() {
   if (weather !== undefined) return;
   weather = null;
@@ -975,15 +976,26 @@ async function loadWeather() {
     const m = await loadManifest();
     const spy = await loadSeries('daily', m.market);
     const last = spy[spy.length - 1];
-    if (Date.now() / 1000 - last[0] > 5 * 86_400) return;
+    const age = Date.now() / 1000 - last[0];
+    // The weekly pulse stays useful a little longer than a single day's weather.
+    if (age > 14 * 86_400) return;
     const c = spy.map((x) => x[4]);
     const d1 = (c[c.length - 1] / c[c.length - 2] - 1) * 100;
     const sectors = await Promise.all(
       Object.entries(m.sectors).map(async ([name, { etf }]) => {
         const sc = (await loadSeries('daily', etf)).map((x) => x[4]);
-        return { name, d1: (sc[sc.length - 1] / sc[sc.length - 2] - 1) * 100 };
+        const n = sc.length;
+        return { name, d1: (sc[n - 1] / sc[n - 2] - 1) * 100, week: (sc[n - 1] / sc[n - 6] - 1) * 100, spark: sc.slice(-22) };
       }),
     );
+    const asOf = new Date(last[0] * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    // Short names keep the bubble on one line on a phone.
+    const short = (n: string) => n.replace('Consumer Discretionary', 'Consumer');
+    pulse = { sectors: sectors.map(({ name, week, spark }) => ({ name: short(name), week, spark })), asOf };
+    if (age > 5 * 86_400) {
+      if (!$('#view-home').hidden) renderHome();
+      return;
+    }
     sectors.sort((a, b) => b.d1 - a.d1);
     const sky = d1 <= -2.5 ? 'a storm' : d1 <= -1 ? 'choppy water' : d1 < 0.5 && d1 > -0.5 ? 'calm seas' : d1 >= 1 ? 'fair winds' : d1 > 0 ? 'a light tailwind' : 'a light headwind';
     const day = new Date(last[0] * 1000).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
@@ -1013,9 +1025,11 @@ function renderHome() {
       war: ws ? { label: ws.op, day: ws.day, at: ws.at } : null,
       focus: rec ? { skill: SKILLS.find((k) => k.id === rec.lesson.skill)!.name, challenge: rec.lesson.challenge } : null,
       weather: weather ?? null,
+      pulse,
     },
     now,
   );
+  startPulse(home, pulse);
   loadWeather();
 }
 wireHome($('#view-home'), renderHome);

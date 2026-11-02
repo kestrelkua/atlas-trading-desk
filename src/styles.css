@@ -2667,6 +2667,65 @@ body[data-view='home'] #help-btn {
 .thought {
   margin-top: 1.2rem;
 }
+/* Sector pulse: one quiet bubble that takes turns through the sectors. */
+.pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 1.4rem auto 0;
+  padding: 0.38rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-2, var(--paper)) 70%, transparent);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.pulse:hover {
+  border-color: var(--ink-3);
+}
+.pulse > * {
+  transition: opacity 0.26s ease;
+}
+.pulse.fading > * {
+  opacity: 0;
+}
+.pulse-name {
+  color: var(--ink);
+}
+.pulse > span {
+  white-space: nowrap;
+}
+.pulse-spark {
+  width: 54px;
+  height: 16px;
+  overflow: visible;
+}
+.pulse-spark polyline {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pulse-chg {
+  font-variant-numeric: tabular-nums;
+}
+.pulse-chg.up {
+  color: var(--up);
+}
+.pulse-chg.down {
+  color: var(--down);
+}
+.pulse-when {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+}
+.pulse + .weather {
+  margin-top: 0.7rem;
+}
 
 /* ---------- Passport ---------- */
 .passport .stamps {
