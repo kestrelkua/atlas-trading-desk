@@ -2811,3 +2811,226 @@ body[data-view='home'] #help-btn {
     font-size: 0.56rem;
   }
 }
+
+/* ---------- Game of the Day ---------- */
+.daily-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.4rem 1rem 3rem;
+}
+.daily-head {
+  text-align: center;
+  margin-bottom: 0.9rem;
+}
+.daily-head h2 {
+  margin: 0.1rem 0 0.3rem;
+}
+.daily-head .muted {
+  max-width: 34rem;
+  margin: 0 auto;
+}
+.daily .eyebrow {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin: 0;
+}
+.daily-steps {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  counter-reset: step;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+.daily-steps li {
+  counter-increment: step;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.daily-steps li::before {
+  content: counter(step) '. ';
+}
+.daily-steps li.on {
+  color: var(--ink);
+  border-color: var(--rule);
+  background: var(--paper-2);
+}
+.daily-steps li.done {
+  color: var(--ink-2);
+}
+.daily-steps li.done::before {
+  content: '✓ ';
+}
+.daily-board {
+  padding: 0.6rem 0.6rem 0.9rem;
+}
+.daily-chart {
+  height: 360px;
+}
+.daily-prompt {
+  text-align: center;
+  padding: 0.4rem 0.5rem 0;
+}
+.daily-prompt p {
+  margin: 0.3rem 0 0.6rem;
+}
+.daily-flash {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.daily-calls {
+  display: flex;
+  justify-content: center;
+  gap: 0.7rem;
+}
+.daily-calls .btn {
+  min-width: 7.5rem;
+  font-weight: 700;
+}
+.daily-calls .btn.up {
+  color: var(--up);
+  border-color: var(--up);
+}
+.daily-calls .btn.down {
+  color: var(--down);
+  border-color: var(--down);
+}
+.daily b.up,
+.daily .today-big.up {
+  color: var(--up);
+}
+.daily b.down,
+.daily .today-big.down {
+  color: var(--down);
+}
+.daily-guess {
+  margin-top: 1.2rem;
+}
+.daily-guess h3 {
+  text-align: center;
+  margin: 0 0 0.4rem;
+}
+.daily-hint {
+  text-align: center;
+  margin: 0 0 0.6rem;
+}
+.daily-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.daily-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.daily-option:hover:not([disabled]) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.daily-option.wrong {
+  opacity: 0.45;
+  text-decoration: line-through;
+  cursor: default;
+}
+.opt-name {
+  font-weight: 700;
+}
+.opt-tk {
+  font-weight: 400;
+  font-size: 0.8em;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+.opt-desc {
+  font-size: 0.86rem;
+  color: var(--ink-2);
+}
+.daily-reveal {
+  margin-top: 1.2rem;
+  display: grid;
+  gap: 0.9rem;
+}
+.daily-today h2 {
+  margin: 0.1rem 0 0.3rem;
+}
+.today-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.9rem 0;
+}
+.today-lbl {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+.today-big {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.range52 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+.range-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+.range-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+.today-context {
+  margin: 0.8rem 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.daily-share-line {
+  font-size: 1.2rem;
+  letter-spacing: 0.05em;
+  margin: 0.3rem 0 0.8rem;
+}
+.daily-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 560px) {
+  .daily-chart {
+    height: 240px;
+  }
+  .daily-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .today-big {
+    font-size: 1.1rem;
+  }
+}

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "fetch-data": "node scripts/fetch-data.mjs",
     "build-map": "node scripts/build-map.mjs",
-    "build-icons": "node scripts/build-icons.mjs"
+    "build-icons": "node scripts/build-icons.mjs",
+    "daily": "node scripts/daily.mjs"
   },
   "dependencies": {
     "lightweight-charts": "4.2.0"

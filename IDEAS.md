@@ -49,11 +49,14 @@ Every War Room game should feel new while teaching the same core ideas. Two rout
 - Front-line camera (frame both nations when a conflict starts), minimap when zoomed, labels by zoom level
 - More instruments (bonds: teaches that safe havens can fail; shipping)
 
-## Game of the Day (next phase)
-- One real stock a day, same for everyone (Wordle-style), picked from the day's biggest movers in a ~100-company universe
-- Play a disguised slice of its history first, then guess which of 4 same-sector companies it was, then the reveal plus a "Today" card (price, day change, 52-week range, sector move, what the company does)
-- Streaks and a shareable result line; under 5 minutes
-- Data: a daily after-the-close job writes one small file the app loads (a few hundred KB per day). For first testing, run it once by hand; then schedule it (in the cloud if the app is online)
+## Built in v0.7 · Home and Game of the Day
+- Home: one line that knows you, time-aware suggestion with "Not today", saved games, day and night on the map, market weather, a rotating sector pulse, the passport of stamps
+- Game of the Day: one real stock a day from a ~100-company universe (one of the day's biggest movers). Read its last 90 days in disguise with three up-or-down calls, name it from four same-sector companies (hints after a miss), then the reveal and a Today card. Share line, no streak counter
+- `npm run daily` writes `public/daily/<date>.json` (about 5 KB) and keeps the last 30 days
+
+## Game of the Day: still to do
+- Run the daily job automatically after each close (a scheduled GitHub Action that commits the file, which auto-deploys). Until then, run `npm run daily` by hand and push
+- Maybe: a small archive of past games, and a War Room-style "why it moved" line once real headlines exist
 
 ## Next up
 - **Prediction drills**: freeze the chart and ask "up, down or sideways over the next 10 bars?" 5-second reps, spaced repetition on the patterns you miss
