@@ -211,6 +211,16 @@ export class ChartView {
     this.flushMarkers();
   }
 
+  /** All markers, for saving a round in progress. */
+  exportMarkers() {
+    return structuredClone(this.markers);
+  }
+
+  importMarkers(m: Record<MarkerKind, SeriesMarker<Time>[]>) {
+    this.markers = m;
+    this.flushMarkers();
+  }
+
   clearMarkers(kind: MarkerKind) {
     this.markers[kind] = [];
     this.flushMarkers();

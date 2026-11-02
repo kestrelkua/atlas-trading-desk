@@ -2610,3 +2610,145 @@ body[data-view='home'] #help-btn {
     height: 72px;
   }
 }
+/* ---------- Home rework: line that knows you, time of day, weather ---------- */
+.home-line {
+  color: var(--ink-2);
+  margin: 0;
+  max-width: 30rem;
+  margin-inline: auto;
+}
+.home-line b {
+  color: var(--ink);
+}
+.home-line i {
+  color: var(--ink);
+}
+.next-card {
+  margin-bottom: 0.3rem;
+}
+.not-today {
+  display: block;
+  margin: 0 0 0.9rem auto;
+  font-size: 0.82rem;
+}
+.home-backdrop .night {
+  fill: var(--ink);
+  stroke: none;
+  opacity: 0.035;
+}
+/* The page warms a little toward evening and cools at night. */
+.home::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.home.morning::before {
+  background: radial-gradient(ellipse at 50% 0%, rgba(132, 168, 212, 0.1), transparent 60%);
+}
+.home.evening::before {
+  background: radial-gradient(ellipse at 50% 0%, rgba(212, 169, 87, 0.14), transparent 60%);
+}
+.home.night::before {
+  background: radial-gradient(ellipse at 50% 0%, rgba(60, 70, 120, 0.14), transparent 65%);
+}
+.weather {
+  margin: 1.4rem 0 0;
+  font-size: 0.92rem;
+  color: var(--ink-2);
+}
+.weather-lbl {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  margin-right: 0.35rem;
+}
+.thought {
+  margin-top: 1.2rem;
+}
+
+/* ---------- Passport ---------- */
+.passport .stamps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.9rem;
+  margin-top: 0.6rem;
+}
+.stamp {
+  --ink-c: var(--accent);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--ink-c);
+  outline: 1px solid var(--ink-c);
+  outline-offset: -7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.9rem;
+  color: var(--ink-c);
+  transform: rotate(var(--tilt, 0deg));
+  line-height: 1.1;
+}
+.stamp.rank {
+  --ink-c: var(--gold);
+}
+.stamp.crisis {
+  --ink-c: var(--down);
+  border-radius: 14px;
+}
+.stamp.war-lesson {
+  --ink-c: var(--up);
+}
+.stamp.start {
+  --ink-c: var(--ink-2);
+}
+.stamp.earned {
+  background: color-mix(in srgb, var(--ink-c) 7%, transparent);
+}
+.stamp.blank {
+  --ink-c: var(--rule);
+  border-style: dashed;
+  outline-color: transparent;
+  color: var(--ink-3);
+  transform: none;
+}
+.stamp-title {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+.stamp.blank {
+  opacity: 0.55;
+}
+.stamp-sub {
+  font-size: 0.68rem;
+  margin-top: 0.2rem;
+  opacity: 0.85;
+}
+.stamp-date {
+  font-size: 0.66rem;
+  margin-top: 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+@media (max-width: 520px) {
+  .passport .stamps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .stamp {
+    padding: 0.55rem;
+    outline-offset: -5px;
+  }
+  .stamp-title {
+    font-size: 0.68rem;
+  }
+  .stamp-sub,
+  .stamp-date {
+    font-size: 0.56rem;
+  }
+}

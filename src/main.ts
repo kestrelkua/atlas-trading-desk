@@ -8,12 +8,13 @@ import { buildCalendar, generateNews, makeBriefing, type Briefing, type Calendar
 import { Indicators } from './indicators';
 import { LESSONS, type RoundFacts } from './lessons';
 import { REACTION_BARS, explainGrade, gradeCall, type Choice, type NewsCall } from './news';
-import { level, loadProfile, markLessonSeen, recommend, recordObjective, recordRound, resetProfile, saveProfile } from './profile';
+import { level, loadProfile, skillTrend, markLessonSeen, recommend, recordObjective, recordRound, resetProfile, saveProfile } from './profile';
 import { Replay } from './replay';
 import { SKILLS, scoreRound } from './skills';
 import { TUTORIAL_CHART, TUTORIAL_NEWS_BAR, Tutorial, tutorialResult } from './tutorial';
 import { WarRoom } from './war';
-import { homeView, wireHome } from './home';
+import { clearWelcome, esc, getWelcome, homeView, noteToShow, periodOf, setWelcome, wireHome } from './home';
+import { passportView, takeNewStamp } from './passport';
 import { loadWarProfile, resetWarProfile } from './warlearn';
 import type { Bar, Mode, Raw, Scenario } from './types';
 import * as ui from './ui';
@@ -42,6 +43,7 @@ const state = {
   levels: [] as number[],
   tool: null as Tool | null,
   trendStart: null as { i: number; price: number } | null,
+  trendLines: [] as [{ i: number; price: number }, { i: number; price: number }][],
   swings: 0,
   swingBeforeFirstTrade: false,
   bias: null as string | null,
@@ -130,6 +132,7 @@ async function newRound(opts: { tutorial?: boolean } = {}) {
     bias: null,
     tool: null,
     trendStart: null,
+    trendLines: [],
     swings: 0,
     swingBeforeFirstTrade: false,
     calls: [],
@@ -139,6 +142,10 @@ async function newRound(opts: { tutorial?: boolean } = {}) {
     price: s.bars[s.pre - 1].c,
   });
   state.tags.clear();
+  if (!opts.tutorial) {
+    clearSimSave();
+    clearWelcome();
+  }
   setTool(null, true);
   chart.reset(s.bars, ind.points, s.pre, s.labels, s.ticks);
   state.replay = new Replay(s.bars, s.pre, handlers);
@@ -185,6 +192,7 @@ const handlers = {
     renderObjective();
     if (state.showLiquidity) drawLiquidity();
     tutorial.barClosed(i - s.pre);
+    if ((i - s.pre) % 5 === 4) saveSim();
   },
   onEnd() {
     if (state.acct.open) closePosition('end');
@@ -203,9 +211,23 @@ function roundFacts(): RoundFacts {
   };
 }
 
+/** The single best true thing about a finished round, for Home's welcome-back line. Never the score. */
+function simBestMoment(trades: Trade[], objectiveMet: string | null) {
+  const s = state.s!;
+  if (objectiveMet) return `You met your objective from “${objectiveMet}”.`;
+  const good = trades.filter((t) => (t.pnl ?? 0) > 0 && t.tags.length && t.tags.every((g) => t.verified[g])).sort((a, b) => b.pnl! - a.pnl!)[0];
+  if (good) return `Your ${tagById(good.tags[0]).label.toLowerCase()} trade on ${s.alias.ticker} paid off, for the right reasons.`;
+  const ret = (state.acct.equity(state.price) / START_EQUITY - 1) * 100;
+  const hold = (s.bars[s.bars.length - 1].c / s.bars[s.pre].o - 1) * 100;
+  if (trades.length && ret > hold) return `You beat buy-and-hold on ${s.alias.ticker} by ${(ret - hold).toFixed(1)} points.`;
+  if (!trades.length) return 'You watched a whole round without trading. Patience is a skill too.';
+  return `You finished a full round on ${s.alias.ticker}. Your journal has the details.`;
+}
+
 function finishRound() {
   const s = state.s!;
   setPhase('done');
+  clearSimSave();
   renderQuote();
   if (tutorial.active) {
     const freeTrades = state.acct.closed.filter((t) => t.entryIdx >= s.pre + TUTORIAL_NEWS_BAR + 12).length;
@@ -232,6 +254,7 @@ function finishRound() {
     scores,
   });
   renderLevelBadge();
+  setWelcome(simBestMoment(trades, objective && !placement && objective.status.done ? objective.lesson.title : null));
   $('#debrief .modal-card').innerHTML = ui.debrief({
     s,
     acct: state.acct,
@@ -271,6 +294,7 @@ function togglePlay() {
   } else if (state.phase === 'playing') {
     r.pause();
     setPhase('paused');
+    saveSim();
   }
 }
 
@@ -528,6 +552,7 @@ chart.main.subscribeClick((param) => {
       toast('Now click the second point.');
     } else {
       chart.addTrendLine(state.trendStart, { i, price });
+      state.trendLines.push([state.trendStart, { i, price }]);
       state.trendStart = null;
       setPhaseBanner();
     }
@@ -552,6 +577,7 @@ function clearMarks() {
   state.swings = 0;
   chart.clearMarkers('swings');
   chart.clearTrendLines();
+  state.trendLines = [];
   renderBriefing();
 }
 
@@ -678,7 +704,7 @@ function renderLevelBadge() {
 }
 
 function renderLessons() {
-  $('#view-lessons').innerHTML = ui.lessonsView(state.profile, recommend(state.profile)) + ui.warLessonsView(loadWarProfile());
+  $('#view-lessons').innerHTML = ui.lessonsView(state.profile, recommend(state.profile)) + passportView(state.profile, loadWarProfile()) + ui.warLessonsView(loadWarProfile());
 }
 
 let todayLoaded = false;
@@ -739,6 +765,149 @@ function setPhaseBanner() {
       }[p];
 }
 
+// ---------- Saving a round in progress ----------
+
+const SIM_SAVE = 'atlas.save.sim.v1';
+
+interface SimSave {
+  at: number;
+  next: number;
+  mode: Mode;
+  s: Scenario;
+  news: NewsItem[];
+  calendar: CalendarEvent[];
+  brief: Briefing | null;
+  acct: Record<string, unknown>;
+  levels: number[];
+  trendLines: typeof state.trendLines;
+  bias: string | null;
+  tags: string[];
+  size: Size;
+  stopAtr: number | null;
+  targetAtr: number | null;
+  calls: NewsCall[];
+  earningsSeen: number;
+  earningsFlat: number;
+  swings: number;
+  swingBeforeFirstTrade: boolean;
+  markers: ReturnType<ChartView['exportMarkers']>;
+  wire: string;
+}
+
+/** Saves the round so a closed tab or a phone killing the app doesn't lose it. Resumes at the start of the forming bar. */
+function saveSim() {
+  const r = state.replay;
+  if (!simStarted || tutorial.active || !state.s || !r || (state.phase !== 'playing' && state.phase !== 'paused')) return;
+  const data: SimSave = {
+    at: Date.now(),
+    next: Math.max(state.s.pre, r.i),
+    mode: state.mode,
+    s: state.s,
+    news: state.news,
+    calendar: state.calendar,
+    brief: state.brief,
+    acct: { ...state.acct },
+    levels: state.levels,
+    trendLines: state.trendLines,
+    bias: state.bias,
+    tags: [...state.tags],
+    size: state.size,
+    stopAtr: state.stopAtr,
+    targetAtr: state.targetAtr,
+    calls: state.calls,
+    earningsSeen: state.earningsSeen,
+    earningsFlat: state.earningsFlat,
+    swings: state.swings,
+    swingBeforeFirstTrade: state.swingBeforeFirstTrade,
+    markers: chart.exportMarkers(),
+    wire: $('#wire').innerHTML,
+  };
+  try {
+    localStorage.setItem(SIM_SAVE, JSON.stringify(data));
+  } catch {
+    /* storage full or unavailable: the round just won't survive a restart */
+  }
+}
+
+function loadSimSave(): SimSave | null {
+  try {
+    return JSON.parse(localStorage.getItem(SIM_SAVE) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function clearSimSave() {
+  try {
+    localStorage.removeItem(SIM_SAVE);
+  } catch {}
+}
+
+/** Puts a saved round back exactly where it was, paused. */
+function resumeSim(d: SimSave) {
+  state.replay?.pause();
+  clearDecision();
+  const s = d.s;
+  const ind = new Indicators(s.bars);
+  Object.assign(state, {
+    mode: d.mode,
+    s,
+    ind,
+    news: d.news,
+    calendar: d.calendar,
+    brief: d.brief,
+    acct: Object.assign(new Account(START_EQUITY), d.acct),
+    levels: d.levels,
+    trendLines: d.trendLines,
+    trendStart: null,
+    bias: d.bias,
+    size: d.size,
+    stopAtr: d.stopAtr,
+    targetAtr: d.targetAtr,
+    calls: d.calls,
+    earningsSeen: d.earningsSeen,
+    earningsFlat: d.earningsFlat,
+    swings: d.swings,
+    swingBeforeFirstTrade: d.swingBeforeFirstTrade,
+    cur: d.next - 1,
+    price: s.bars[d.next - 1].c,
+  });
+  state.tags = new Set(d.tags);
+  document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.mode === d.mode));
+  setTool(null, true);
+  chart.reset(s.bars, ind.points, d.next, s.labels, s.ticks);
+  state.levels.forEach((p, i) => chart.setLine(`lvl-${i + 1}`, p, { color: css('--gold'), title: 'Level', style: LineStyle.Dotted }));
+  for (const [a, b] of state.trendLines) chart.addTrendLine(a, b);
+  chart.importMarkers(d.markers);
+  $('#wire').innerHTML = d.wire;
+  state.replay = new Replay(s.bars, d.next, handlers);
+  setSpeed(state.speed);
+  setPhase('paused');
+  renderAll();
+  drawLiquidity();
+  toast('Welcome back. Your round is right where you left it.');
+}
+
+/** What Home needs to offer "pick up where you left off". */
+function simResumeInfo() {
+  const live = simStarted && !tutorial.active && (state.phase === 'playing' || state.phase === 'paused') && state.s;
+  const s = live ? state.s : loadSimSave()?.s;
+  const next = live ? state.cur + 1 : loadSimSave()?.next;
+  if (!s || next === undefined) return null;
+  return { name: s.alias.name, day: Math.max(1, next - s.pre), at: live ? Date.now() : loadSimSave()!.at };
+}
+
+window.addEventListener('pagehide', () => {
+  saveSim();
+  war.save();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    saveSim();
+    war.save();
+  }
+});
+
 // ---------- Tutorial ----------
 
 function startTutorial() {
@@ -758,12 +927,17 @@ function showView(view: string) {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.view === view));
   for (const v of ['home', 'sim', 'war', 'lessons']) $(`#view-${v}`).hidden = v !== view;
   if (view !== 'sim' && state.phase === 'playing') togglePlay();
+  if (view !== 'sim') saveSim();
   if (view !== 'war') war.pause();
   if (view === 'lessons') renderLessons();
   if (view === 'war') war.ensureStarted();
   if (view === 'home') renderHome();
   if (view === 'sim' && !simStarted) {
-    if (state.profile.tutorialDone) {
+    const saved = state.profile.tutorialDone ? loadSimSave() : null;
+    if (saved) {
+      simStarted = true;
+      resumeSim(saved);
+    } else if (state.profile.tutorialDone) {
       simStarted = true;
       newRound();
     } else startTutorial();
@@ -771,22 +945,78 @@ function showView(view: string) {
   window.scrollTo(0, 0);
 }
 
+/** The one line under the greeting: whichever is most worth saying right now. */
+function knowsYouLine(): string {
+  const p = state.profile;
+  if (!p.tutorialDone) return 'Welcome to Atlas.';
+  const welcome = getWelcome();
+  if (welcome) return `Welcome back. ${esc(welcome)}`;
+  const w = loadWarProfile();
+  const stamp = takeNewStamp(p, w);
+  if (stamp) return `New stamp in your passport: <b>${esc(stamp.title)}</b>.`;
+  const noted = [...w.rounds].reverse().find((r) => r.note);
+  const note = noteToShow(noted ? { at: noted.at, note: noted.note! } : null);
+  if (note) return `Last time you wrote: <i>“${esc(note)}”</i>`;
+  const rising = SKILLS.map((k) => ({ k, t: skillTrend(p, k.id) ?? 0 })).sort((a, b) => b.t - a.t)[0];
+  if (rising && rising.t > 3) return `${rising.k.name} is on the rise: up ${rising.t} over your last few rounds.`;
+  const monday = startOfWeek(new Date());
+  const n = [...p.rounds, ...w.rounds].filter((r) => new Date(r.at) >= monday).length;
+  return [p.rounds.length ? level(p).name : null, n ? `${n} round${n === 1 ? '' : 's'} this week` : 'A fresh week'].filter(Boolean).join(' · ');
+}
+
+const startOfWeek = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+
+/** "Market weather": one calm sentence about the latest real trading day, only while the data is fresh. */
+let weather: string | null | undefined;
+async function loadWeather() {
+  if (weather !== undefined) return;
+  weather = null;
+  try {
+    const m = await loadManifest();
+    const spy = await loadSeries('daily', m.market);
+    const last = spy[spy.length - 1];
+    if (Date.now() / 1000 - last[0] > 5 * 86_400) return;
+    const c = spy.map((x) => x[4]);
+    const d1 = (c[c.length - 1] / c[c.length - 2] - 1) * 100;
+    const sectors = await Promise.all(
+      Object.entries(m.sectors).map(async ([name, { etf }]) => {
+        const sc = (await loadSeries('daily', etf)).map((x) => x[4]);
+        return { name, d1: (sc[sc.length - 1] / sc[sc.length - 2] - 1) * 100 };
+      }),
+    );
+    sectors.sort((a, b) => b.d1 - a.d1);
+    const sky = d1 <= -2.5 ? 'a storm' : d1 <= -1 ? 'choppy water' : d1 < 0.5 && d1 > -0.5 ? 'calm seas' : d1 >= 1 ? 'fair winds' : d1 > 0 ? 'a light tailwind' : 'a light headwind';
+    const day = new Date(last[0] * 1000).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
+    weather = `${day}: ${sky}. ${sectors[0].name} led, ${sectors[sectors.length - 1].name} lagged.`;
+    if (!$('#view-home').hidden) renderHome();
+  } catch {
+    weather = null;
+  }
+}
+
 function renderHome() {
   const p = state.profile;
   const now = new Date();
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const monday = startOfWeek(now);
   const played = [...p.rounds.map((r) => r.at), ...loadWarProfile().rounds.map((r) => r.at)].map((at) => new Date(at)).filter((d) => d >= monday);
-  const week = Array.from({ length: 7 }, (_, i) => played.some((d) => (d.getDay() + 6) % 7 === i));
   const rec = recommend(p);
-  $('#view-home').innerHTML = homeView({
-    fresh: !p.tutorialDone,
-    levelName: p.rounds.length ? level(p).name : null,
-    week,
-    roundsThisWeek: played.length,
-    simInProgress: simStarted && !tutorial.active && (state.phase === 'playing' || state.phase === 'paused'),
-    war: war.status(),
-    focus: rec ? { skill: SKILLS.find((k) => k.id === rec.lesson.skill)!.name, challenge: rec.lesson.challenge } : null,
-  });
+  const sim = simResumeInfo();
+  const ws = war.status();
+  const home = $('#view-home');
+  home.className = `home ${periodOf(now)}`;
+  home.innerHTML = homeView(
+    {
+      fresh: !p.tutorialDone,
+      line: knowsYouLine(),
+      week: Array.from({ length: 7 }, (_, i) => played.some((d) => (d.getDay() + 6) % 7 === i)),
+      sim: sim ? { label: `${sim.name}, your Simulator round`, day: sim.day, at: sim.at } : null,
+      war: ws ? { label: ws.op, day: ws.day, at: ws.at } : null,
+      focus: rec ? { skill: SKILLS.find((k) => k.id === rec.lesson.skill)!.name, challenge: rec.lesson.challenge } : null,
+      weather: weather ?? null,
+    },
+    now,
+  );
+  loadWeather();
 }
 wireHome($('#view-home'), renderHome);
 
@@ -833,8 +1063,17 @@ document.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
   if (!target.closest('.cal-wrap') && !$('#cal-panel').hidden && !tutorial.active) toggleCalendar(false);
   const el = target.closest<HTMLElement>('[data-act]');
-  const nav = target.closest<HTMLElement>('.tabs button, [data-go], [data-home]');
-  if (nav) return showView(nav.dataset.view ?? nav.dataset.go ?? 'home');
+  const nav = target.closest<HTMLElement>('.tabs button, [data-go], button.brand');
+  if (nav) {
+    // A Home suggestion can ask for a particular Simulator mode (the quick five-minute round).
+    const want = nav.dataset.simMode as Mode | undefined;
+    if (want && !simResumeInfo()) {
+      state.mode = want;
+      document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.mode === want));
+      if (simStarted && state.phase !== 'loading') newRound();
+    }
+    return showView(nav.dataset.view ?? nav.dataset.go ?? 'home');
+  }
   if (target.closest('[data-war-new]')) return war.newFromDebrief();
   const deskBtn = target.closest<HTMLElement>('[data-desk]');
   if (deskBtn) {
