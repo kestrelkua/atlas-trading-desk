@@ -22,6 +22,16 @@ export interface HomeContext {
   war: Resume | null;
   focus: { skill: string; challenge: string } | null;
   weather: string | null;
+  /** Sectors for the little pulse bubble, plus the last trading day they cover. */
+  pulse: { sectors: SectorPulse[]; asOf: string } | null;
+}
+
+export interface SectorPulse {
+  name: string;
+  /** Change over the last 5 trading days, in %. */
+  week: number;
+  /** About a month of closes, for the sparkline. */
+  spark: number[];
 }
 
 const NAME_KEY = 'atlas.name';
@@ -218,6 +228,7 @@ export function homeView(c: HomeContext, now = new Date()) {
         <button class="door" data-go="war">${DOOR_ART.war}<span class="door-text"><span class="door-title">War Room</span><span class="door-sub">Zoom out: follow the money when the world shakes.</span></span></button>
         <button class="door" data-go="lessons">${DOOR_ART.lessons}<span class="door-text"><span class="door-title">Lessons &amp; Progress</span><span class="door-sub">Your skills, your passport, and what to practice next.</span></span></button>
       </nav>
+      ${c.pulse ? pulseHtml(c.pulse) : ''}
       ${c.weather ? `<p class="weather"><span class="weather-lbl">Market weather</span> ${c.weather}</p>` : ''}
       <figure class="thought">
         <blockquote>“${esc(quote)}”</blockquote>
@@ -226,10 +237,66 @@ export function homeView(c: HomeContext, now = new Date()) {
     </div>`;
 }
 
+// ---------- Sector pulse: one sector at a time, quietly taking turns ----------
+
+let pulseAt = -1;
+
+function spark(v: number[]) {
+  const w = 54, h = 16;
+  const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1;
+  const pts = v.map((x, i) => `${((i / (v.length - 1)) * w).toFixed(1)},${(h - 1 - ((x - lo) / span) * (h - 2)).toFixed(1)}`).join(' ');
+  return `<svg class="pulse-spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" /></svg>`;
+}
+
+function pulseInner(x: SectorPulse, asOf: string) {
+  const dir = x.week >= 0.15 ? 'up' : x.week <= -0.15 ? 'down' : 'flat';
+  const chg = `${x.week >= 0 ? '+' : '−'}${Math.abs(x.week).toFixed(1)}%`;
+  return `<span class="pulse-name">${esc(x.name)}</span>${spark(x.spark)}<span class="pulse-chg ${dir}">${chg}</span><span class="pulse-when">week to ${esc(asOf)}</span>`;
+}
+
+function pulseHtml(p: { sectors: SectorPulse[]; asOf: string }) {
+  // A random sector each visit, then they take turns.
+  if (pulseAt < 0 || pulseAt >= p.sectors.length) pulseAt = Math.floor(Math.random() * p.sectors.length);
+  const x = p.sectors[pulseAt];
+  return `<button class="pulse" data-home="pulse" title="Tap for another sector" aria-live="polite">${pulseInner(x, p.asOf)}</button>`;
+}
+
+let pulseData: { sectors: SectorPulse[]; asOf: string } | null = null;
+let pulseTimer = 0;
+
+/** Swaps the bubble to the next sector with a short fade. */
+function nextPulse(root: HTMLElement) {
+  const el = root.querySelector<HTMLElement>('.pulse');
+  if (!el || !pulseData) return;
+  pulseAt = (pulseAt + 1) % pulseData.sectors.length;
+  const x = pulseData.sectors[pulseAt];
+  el.classList.add('fading');
+  setTimeout(() => {
+    el.innerHTML = pulseInner(x, pulseData!.asOf);
+    el.classList.remove('fading');
+  }, 260);
+}
+
+/** Starts (or restarts) the slow rotation. It rests while you hover, while Home is hidden, and for reduced motion. */
+export function startPulse(root: HTMLElement, data: { sectors: SectorPulse[]; asOf: string } | null) {
+  pulseData = data;
+  clearInterval(pulseTimer);
+  if (!data || data.sectors.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  pulseTimer = window.setInterval(() => {
+    const el = root.querySelector('.pulse');
+    if (root.hidden || document.hidden || !el || el.matches(':hover, :focus-visible')) return;
+    nextPulse(root);
+  }, 9000);
+}
+
 /** Name editing and "Not today" live entirely on Home; `rerender` redraws it after a change. */
 export function wireHome(root: HTMLElement, rerender: () => void) {
   root.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
+    if (t.closest('[data-home="pulse"]')) {
+      nextPulse(root);
+      return;
+    }
     if (t.closest('[data-home="skip"]')) {
       const s = read<{ day: string; n: number }>(SKIP_KEY, { day: '', n: 0 });
       write(SKIP_KEY, { day: today(), n: s.day === today() ? s.n + 1 : 1 });
