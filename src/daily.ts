@@ -16,6 +16,8 @@ export interface DailyGame {
     ticker: string;
     name: string;
     desc: string;
+    /** Two hints: a little-known deep cut, then a friendlier fun fact. Older games have none. */
+    facts?: { deep: string; fun: string } | null;
     from: string;
     to: string;
     price: number;
@@ -35,6 +37,8 @@ export interface DailyResult {
   calls: { up: boolean; right: boolean }[];
   /** Tickers guessed, in order; the last one is the answer once done. */
   guesses: string[];
+  /** How many hints were opened. */
+  hints?: number;
   done: boolean;
   at: string;
 }
@@ -109,6 +113,7 @@ export class DailyView {
   private waiting = false;
   private calls: { at: number; up: boolean; right?: boolean }[] = [];
   private guesses: string[] = [];
+  private hintsUsed = 0;
   /** Real price per disguised point, once revealed. */
   private scale = 1;
 
@@ -133,6 +138,7 @@ export class DailyView {
     if (saved?.done) {
       this.calls = saved.calls.map((c, i) => ({ at: CALLS[i], ...c }));
       this.guesses = saved.guesses;
+      this.hintsUsed = saved.hints ?? 0;
       this.reveal(false);
     } else this.toRead();
   }
@@ -321,7 +327,9 @@ export class DailyView {
     box.hidden = false;
     box.innerHTML = `
       <h3>It’s a ${esc(g.sector)} company. Which one?</h3>
-      <p class="muted daily-hint" hidden></p>
+      <div class="daily-hints"></div>
+      <p class="daily-hint-row"><button class="link-btn" data-daily="hint">💡 Need a hint?</button></p>
+      <p class="muted daily-miss" hidden></p>
       <div class="daily-options">
         ${g.options.map((o) => `<button class="daily-option" data-daily="guess" data-t="${o.ticker}"><span class="opt-name">${esc(o.name)} <span class="opt-tk">${o.ticker}</span></span><span class="opt-desc">${esc(o.desc)}</span></button>`).join('')}
       </div>`;
@@ -335,14 +343,34 @@ export class DailyView {
     if (t === g.answer.ticker) return this.reveal(true);
     btn.classList.add('wrong');
     btn.setAttribute('disabled', '');
-    // One hint after the first miss, a second after the next.
-    const hint = this.root.querySelector<HTMLElement>('.daily-hint')!;
-    hint.hidden = false;
-    const misses = this.guesses.length;
-    hint.textContent =
-      misses === 1
-        ? `Not ${g.options.find((o) => o.ticker === t)!.name}. Hint: over the past year this stock is ${signed(g.answer.y1, 0)}.`
-        : `Not that one either. Hint: it closed at $${g.answer.price.toFixed(2)}, between a 52-week low of $${g.answer.lo52.toFixed(0)} and a high of $${g.answer.hi52.toFixed(0)}.`;
+    const miss = this.root.querySelector<HTMLElement>('.daily-miss')!;
+    miss.hidden = false;
+    const left = this.hintList().length - this.hintsUsed;
+    miss.textContent = `Not ${g.options.find((o) => o.ticker === t)!.name}.${left ? ' Try again, or take a hint.' : ' Try again.'}`;
+  }
+
+  /** The hint ladder: the deep cut first, then the fun fact, then the numbers. */
+  private hintList(): { label: string; text: string }[] {
+    const a = this.game!.answer;
+    const numbers = `Over the past year it is ${signed(a.y1, 0)}. It closed at $${a.price.toFixed(2)}, between a 52-week low of $${a.lo52.toFixed(0)} and a high of $${a.hi52.toFixed(0)}.`;
+    return a.facts
+      ? [
+          { label: 'A deep cut', text: a.facts.deep },
+          { label: 'A fun fact', text: a.facts.fun },
+          { label: 'The numbers', text: numbers },
+        ]
+      : [{ label: 'The numbers', text: numbers }];
+  }
+
+  private hint() {
+    const list = this.hintList();
+    if (this.hintsUsed >= list.length) return;
+    const h = list[this.hintsUsed++];
+    const box = this.root.querySelector<HTMLElement>('.daily-hints')!;
+    box.insertAdjacentHTML('beforeend', `<p class="daily-hint"><span class="hint-lbl">Hint ${this.hintsUsed} · ${h.label}</span>${esc(h.text)}</p>`);
+    const btn = this.root.querySelector<HTMLElement>('[data-daily="hint"]')!;
+    if (this.hintsUsed >= list.length) btn.parentElement!.hidden = true;
+    else btn.textContent = `💡 Another hint (${this.hintsUsed + 1} of ${list.length})`;
   }
 
   // ---------- 3. See today ----------
@@ -358,17 +386,20 @@ export class DailyView {
     this.draw();
     const right = this.calls.filter((c) => c.right).length;
     this.prompt(`<p class="muted">Prices on the axis are now real.</p>`);
-    if (fresh) writeResult(g.date, { calls: this.calls.map((c) => ({ up: c.up, right: !!c.right })), guesses: this.guesses, done: true, at: new Date().toISOString() });
+    if (fresh) writeResult(g.date, { calls: this.calls.map((c) => ({ up: c.up, right: !!c.right })), guesses: this.guesses, hints: this.hintsUsed, done: true, at: new Date().toISOString() });
     this.root.querySelector<HTMLElement>('.daily-guess')!.hidden = true;
     const box = this.root.querySelector<HTMLElement>('.daily-reveal')!;
     box.hidden = false;
     const pos = Math.max(0, Math.min(100, ((a.price - a.lo52) / (a.hi52 - a.lo52 || 1)) * 100));
     const tries = this.guesses.length;
+    // A fact you haven't already seen as a hint, if there is one left.
+    const dyk = a.facts ? [a.facts.deep, a.facts.fun][this.hintsUsed] : undefined;
     box.innerHTML = `
       <section class="card daily-today">
         <p class="eyebrow">It was</p>
         <h2>${esc(a.name)} <span class="opt-tk">${a.ticker}</span></h2>
         <p class="muted">${esc(a.desc)} The chart ran from ${shortDate(a.from)} to ${shortDate(a.to, true)}.</p>
+        ${dyk ? `<p class="daily-dyk"><span class="hint-lbl">Did you know?</span>${esc(dyk)}</p>` : ''}
         <div class="today-row">
           <div><span class="today-lbl">Last close</span><span class="today-big">$${a.price.toFixed(2)}</span></div>
           <div><span class="today-lbl">${dailyLabel(g.date).split(',')[0]}</span><span class="today-big ${dir(a.d1)}">${signed(a.d1)}</span></div>
@@ -383,7 +414,7 @@ export class DailyView {
           ${Math.abs(a.d1) > Math.abs(a.marketD1) * 3 ? 'A move this much bigger than the market usually means company news: earnings, guidance or a deal.' : 'It moved roughly with the market.'}</p>
       </section>
       <section class="card daily-result">
-        <p><b>Your game:</b> ${right} of 3 chart calls · ${tries ? `named it in ${tries} ${tries === 1 ? 'try' : 'tries'}` : 'not named'}</p>
+        <p><b>Your game:</b> ${right} of 3 chart calls · ${tries ? `named it in ${tries} ${tries === 1 ? 'try' : 'tries'}` : 'not named'}${this.hintsUsed ? ` · ${this.hintsUsed} ${this.hintsUsed === 1 ? 'hint' : 'hints'}` : ''}</p>
         <p class="daily-share-line">${this.shareGrid()}</p>
         <div class="daily-actions">
           <button class="btn primary" data-daily="share">Share result</button>
@@ -395,12 +426,12 @@ export class DailyView {
   }
 
   private shareGrid() {
-    return `${this.calls.map((c) => (c.right ? '🟩' : '🟥')).join('')} · ${this.guesses.length}/4`;
+    return `${this.calls.map((c) => (c.right ? '🟩' : '🟥')).join('')} · ${this.guesses.length}/4${this.hintsUsed ? ` · ${'💡'.repeat(this.hintsUsed)}` : ''}`;
   }
 
   private async share() {
     const g = this.game!;
-    const text = `Atlas · Game of the Day · ${shortDate(g.date)}\nChart calls ${this.calls.map((c) => (c.right ? '🟩' : '🟥')).join('')}\nNamed it in ${this.guesses.length}/4`;
+    const text = `Atlas · Game of the Day · ${shortDate(g.date)}\nChart calls ${this.calls.map((c) => (c.right ? '🟩' : '🟥')).join('')}\nNamed it in ${this.guesses.length}/4${this.hintsUsed ? ` with ${'💡'.repeat(this.hintsUsed)}` : ''}`;
     const url = location.href.split('#')[0];
     const btn = this.root.querySelector<HTMLButtonElement>('[data-daily="share"]')!;
     try {
@@ -423,6 +454,7 @@ export class DailyView {
     else if (a === 'up' || a === 'down') this.call(a === 'up');
     else if (a === 'to-guess') this.toGuess();
     else if (a === 'guess') this.guess(el.dataset.t!, el);
+    else if (a === 'hint') this.hint();
     else if (a === 'share') this.share();
   }
 }

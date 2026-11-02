@@ -3,6 +3,7 @@
 // small file the app reads: public/daily/<date>.json, plus public/daily/index.json.
 // It also carries the market and sector closes Home uses for its weather line.
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { FACTS } from './daily-facts.mjs';
 
 /** One line each: what the company does, plainly. Shown as the guess options. */
 const UNIVERSE = {
@@ -258,6 +259,7 @@ const game = {
     ticker: pick.tk,
     name: stocks[pick.tk][0],
     desc: stocks[pick.tk][1],
+    facts: FACTS[pick.tk] ?? null,
     from: nyDate(win[0].t),
     to: date,
     price: round(last.c),
