@@ -55,7 +55,7 @@ Every War Room game should feel new while teaching the same core ideas. Two rout
 - `npm run daily` writes `public/daily/<date>.json` (about 5 KB) and keeps the last 30 days
 
 ## Game of the Day: still to do
-- Run the daily job automatically after each close (a scheduled GitHub Action that commits the file, which auto-deploys). Until then, run `npm run daily` by hand and push
+- ~~Run the daily job automatically~~ Done: `.github/workflows/daily.yml` runs weekdays at 22:30 UTC, commits the file and redeploys. It can also be started by hand from the repo's Actions tab
 - Maybe: a small archive of past games, and a War Room-style "why it moved" line once real headlines exist
 
 ## Next up

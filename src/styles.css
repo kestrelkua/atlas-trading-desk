@@ -2916,9 +2916,47 @@ body[data-view='home'] #help-btn {
   text-align: center;
   margin: 0 0 0.4rem;
 }
-.daily-hint {
+.daily-hints {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0.4rem;
+}
+.daily-hint,
+.daily-dyk {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--gold) 8%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  animation: hint-in 0.35s ease;
+}
+.daily-dyk {
+  margin-top: 0.7rem;
+  animation: none;
+}
+.hint-lbl {
+  display: block;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  letter-spacing: 0.06em;
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  margin-bottom: 0.15rem;
+}
+.daily-hint-row {
+  text-align: center;
+  margin: 0.3rem 0 0.7rem;
+}
+.daily-miss {
   text-align: center;
   margin: 0 0 0.6rem;
+}
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 .daily-options {
   display: grid;

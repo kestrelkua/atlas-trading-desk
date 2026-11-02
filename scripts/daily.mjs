@@ -1,8 +1,9 @@
-// Game of the Day: run once after the close. Pulls a year of daily bars for a
+// Game of the Day: run once after the close. Pulls two years of daily bars for a
 // ~100-company universe, picks one of the day's biggest movers, and writes one
 // small file the app reads: public/daily/<date>.json, plus public/daily/index.json.
 // It also carries the market and sector closes Home uses for its weather line.
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { FACTS } from './daily-facts.mjs';
 
 /** One line each: what the company does, plainly. Shown as the guess options. */
 const UNIVERSE = {
@@ -152,7 +153,7 @@ const OUT = 'public/daily';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchDaily(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d&includePrePost=false`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2y&interval=1d&includePrePost=false`;
   const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
   if (!res.ok) throw new Error(`${symbol}: HTTP ${res.status}`);
   const r = (await res.json()).chart.result[0];
@@ -196,6 +197,13 @@ for (const s of symbols) {
 }
 console.log();
 
+// Run during market hours, today's bar is still forming: leave it out until the close.
+const nowNY = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+const todayNY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+if (nowNY.getHours() * 60 + nowNY.getMinutes() < 16 * 60 + 20) {
+  for (const s of Object.keys(data)) if (data[s].length && nyDate(data[s][data[s].length - 1].t) === todayNY) data[s].pop();
+}
+
 const spy = data[MARKET];
 if (!spy?.length) throw new Error('No market data; nothing written.');
 const lastT = spy[spy.length - 1].t;
@@ -238,8 +246,9 @@ const options = [pick.tk];
 while (options.length < 4 && others.length) options.push(others.splice(Math.floor(rand() * others.length), 1)[0]);
 options.sort(() => rand() - 0.5);
 
-const closes = bars.map((b) => b.c);
 const last = bars[bars.length - 1];
+// The 52 weeks are measured by date (two years are fetched), so re-running on a later day gives the same file.
+const year = bars.filter((b) => b.t >= last.t - 365 * 86400);
 const sec = data[etf];
 const game = {
   date,
@@ -250,13 +259,14 @@ const game = {
     ticker: pick.tk,
     name: stocks[pick.tk][0],
     desc: stocks[pick.tk][1],
+    facts: FACTS[pick.tk] ?? null,
     from: nyDate(win[0].t),
     to: date,
     price: round(last.c),
     d1: pick.d1,
-    hi52: round(Math.max(...bars.slice(-252).map((b) => b.h))),
-    lo52: round(Math.min(...bars.slice(-252).map((b) => b.l))),
-    y1: pct(last.c, closes[Math.max(0, closes.length - 252)]),
+    hi52: round(Math.max(...year.map((b) => b.h))),
+    lo52: round(Math.min(...year.map((b) => b.l))),
+    y1: pct(last.c, year[0].c),
     sectorD1: sec ? pct(sec[sec.length - 1].c, sec[sec.length - 2].c) : null,
     marketD1: pct(spy[spy.length - 1].c, spy[spy.length - 2].c),
   },

@@ -1,0 +1,47 @@
+name: Game of the Day
+
+# After each US market close: pick the day's stock, commit its file, redeploy.
+# 22:30 UTC is after the 4pm New York close in both summer and winter time.
+on:
+  schedule:
+    - cron: '30 22 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The script only uses Node's built-ins, so no npm install is needed.
+      - run: node scripts/daily.mjs
+      - name: Commit the new game
+        id: commit
+        run: |
+          git add public/daily
+          if git diff --cached --quiet; then
+            echo "No new trading day (weekend or holiday); nothing to publish."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "atlas-daily[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Game of the Day: $(jq -r .latest public/daily/index.json)"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      # A push made by this workflow doesn't trigger the deploy by itself, so start it here.
+      - name: Redeploy the site
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main
